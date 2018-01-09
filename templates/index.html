@@ -64,6 +64,7 @@ $( document ).ready( function() {
 
         var x_vals = Object.keys(geneDict); //get x value data (gene)
         var y_vals = [];
+        $("div.results").empty();
         for (var gene in geneDict) {
             //Iterates through genes and displays information
             //HTML for each gene box
@@ -125,6 +126,13 @@ $( document ).ready( function() {
         if ($(this).hasClass("restrained")) {
             $(this).find(".details").removeClass("invisible");
             $(this).removeClass("restrained");
+            var $window = $(window),
+                $element = $( $(this) ),
+                elementTop = $element.offset().top,
+                elementHeight = $element.height(),
+                viewportHeight = $window.height(),
+                scrollIt = elementTop - ((viewportHeight - elementHeight) / 2);
+            $("HTML, BODY").animate({scrollTop: scrollIt}, 500)
         } else {
             $(this).find(".details").addClass("invisible");
             $(this).addClass("restrained");
@@ -132,6 +140,17 @@ $( document ).ready( function() {
         $('.geneResult').not(this).addClass("restrained");
         $('.geneResult').not(this).find(".details").addClass("invisible");
     });
+
+    function scrollToCenter (my_element){
+        console.log("Scroll?");
+        var $window = $(window),
+            $element = $(my_element),
+            elementTop = $element.offset().top,
+            elementHeight = $element.height(),
+            viewportHeight = $window.height(),
+            scrollIt = elementTop - ((viewportHeight - elementHeight) / 2);
+            $("HTML, BODY").animate({scrollTop: scrollIt}, 500)
+    };
 
 });
 </script>
