@@ -106,14 +106,14 @@ def gen_chunks(reader, chunksize=100):
         chunk.append(line)
     yield chunk
 
-if __name__ == '__main__':
+def embellish(FILE):
     print("Running...")
     start = time.time()
     N = 4
-    FILE = "tmp/data/library/Mouse_Kinome_list_Brie.csv"
+    #FILE = "tmp/data/library/Mouse_Kinome_list_Brie.csv"
     #FILE = "test.csv"
     filename = FILE.split('.')[0]
-    OUTPUT_FILE = filename+"_new"+".csv"
+    OUTPUT_FILE = filename+"_updated"+".csv"
     results = []
     output = []
     pool = Pool(N)
