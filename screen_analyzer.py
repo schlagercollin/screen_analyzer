@@ -15,7 +15,7 @@ def parse_lib(filename):
     return library_dict
 
 def parse_qfast(qfast_file, library_file, output_file_json):
-    """Cross references qfast_file with library_file and outputs a dictionary
+    """Cross references fastq_file with library_file and outputs a dictionary
     containing various information (sequence, frequency, description, summary) about
     a given matched gene."""
     library_dict = parse_lib(library_file)
@@ -56,6 +56,7 @@ def parse_qfast(qfast_file, library_file, output_file_json):
                 counter += 1
     sorted_results = OrderedDict(sorted(list(results.items()), key=lambda x: (results[x[0]]['frequency']), reverse=True))
     stats["number_matched"] = number_matched
+    stats["gene_count"] = len(sorted_results)
     stats["number_unmatched"] = number_unmatched
     with open(output_file_json, 'w') as output:
         output.write(json.dumps([sorted_results, unmatched, stats]))

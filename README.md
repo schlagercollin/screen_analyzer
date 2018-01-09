@@ -11,7 +11,7 @@ Then go to web browser and enter ```localhost:5000```.
 
 <img src="https://user-images.githubusercontent.com/23715298/34709947-3a9910e2-f4ce-11e7-8adf-be76f3ac27ab.png" width=600px>
 
-Enter fastq file and library file (.csv) and click analyze. Wait a few seconds.
+Enter fastq file and library file (.csv) and click analyze. (Note, while you can upload both, it is faster to place the files in /tmp/data/fastq and /tmp/data/library, respectively, to skip upload times.
 The program will create an output (.json) file in ```/tmp/data/output``` whose name is a concatenation of the fastq and library filenames.
 
 The result of the analyis will be displayed below. To load a previous analysis, select the file and click load.

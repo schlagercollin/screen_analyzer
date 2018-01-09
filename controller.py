@@ -20,14 +20,16 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def upload_file(myfile):
+def upload_file(myfile, file_type):
     """upload file to corresponding location"""
     if allowed_file(myfile.filename):
         filename = secure_filename(myfile.filename)
-        if type=="fastq":
+        if file_type=="fastq":
             myfile.save(os.path.join(app.config['UPLOAD_FOLDER'], "fastq", filename))
-        elif type=="library":
+        elif file_type=="library":
             myfile.save(os.path.join(app.config['UPLOAD_FOLDER'], "library", filename))
+        elif file_type=="result":
+            myfile.save(os.path.join(app.config['UPLOAD_FOLDER'], "output", filename))
         return filename
     else:
         return False
@@ -49,13 +51,13 @@ def analysis_submit():
         fastq = request.values['fastq']
         if fastq == "Upload your own":
             fastq = request.files['fastq']
-            fastq = upload_file(fastq)
+            fastq = upload_file(fastq, "fastq")
         library = request.values['library']
         print("Request: ", request.files)
         if 'library' in request.files and request.files['library'].filename != '':
             library = request.files['library']
             print("File: ",library)
-            library = upload_file(library)
+            library = upload_file(library, "library")
         output = analyze_data(fastq, library)
         return jsonify(result=output)
 
@@ -67,7 +69,7 @@ def analysis_load():
         result_file = request.values['result_file']
         if result_file == "Upload your own":
             result_file = request.files['result_file']
-            result_file = upload_file(result_file)
+            result_file = upload_file(result_file, "result")
         result_file = os.path.join(UPLOAD_FOLDER, "output", result_file)
         output = load_from_file(result_file)
         return jsonify(result=output)
