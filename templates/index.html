@@ -61,6 +61,7 @@ $( document ).ready( function() {
 
         $("#number_matched").text(stats["number_matched"]); //update stats table
         $("#number_unmatched").text(stats["number_unmatched"]);
+        $("#gene_count").text(stats["gene_count"]);
 
         var x_vals = Object.keys(geneDict); //get x value data (gene)
         var y_vals = [];
@@ -225,6 +226,13 @@ $( document ).ready( function() {
                         Number unmatched:
                     </td>
                     <td id="number_unmatched">
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        Gene count:
+                    </td>
+                    <td id="gene_count">
                     </td>
                 </tr>
             </table>
