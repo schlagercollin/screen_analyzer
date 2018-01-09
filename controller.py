@@ -2,7 +2,7 @@
 Flask controller for parse fastq webapp.
 """
 
-import os, json, threading
+import os, json, threading, sys
 from flask import Flask, render_template, request, jsonify, url_for
 from werkzeug.utils import secure_filename
 from screen_analyzer import *
@@ -10,7 +10,7 @@ from screen_analyzer import *
 curdir = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(curdir, 'tmp/data')
 print(UPLOAD_FOLDER)
-ALLOWED_EXTENSIONS = set(['csv', 'fastq'])
+ALLOWED_EXTENSIONS = ['csv', 'fastq']
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -20,7 +20,7 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def upload_file(myfile, type):
+def upload_file(myfile):
     """upload file to corresponding location"""
     if allowed_file(myfile.filename):
         filename = secure_filename(myfile.filename)
@@ -51,8 +51,10 @@ def analysis_submit():
             fastq = request.files['fastq']
             fastq = upload_file(fastq)
         library = request.values['library']
-        if 'library' in request.files:
+        print("Request: ", request.files)
+        if 'library' in request.files and request.files['library'].filename != '':
             library = request.files['library']
+            print("File: ",library)
             library = upload_file(library)
         output = analyze_data(fastq, library)
         return jsonify(result=output)
@@ -72,6 +74,7 @@ def analysis_load():
 
 def analyze_data(fastq, library):
     """wrapper for parse_qfast function. handles some path information"""
+    print(UPLOAD_FOLDER, fastq, library)
     output_file = os.path.join(UPLOAD_FOLDER, "output", fastq+library+".json")
     library = os.path.join(UPLOAD_FOLDER, 'library', library)
     fastq = os.path.join(UPLOAD_FOLDER,'fastq', fastq)
@@ -90,4 +93,6 @@ def index():
 
 
 if __name__ == '__main__':
+    print(sys.version)
     app.run(debug=True)
+
