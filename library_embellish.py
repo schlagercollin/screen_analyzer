@@ -135,3 +135,4 @@ def embellish(FILE):
     end = time.time()
     duration = end - start
     print("Time Elapsed: ", duration)
+    return OUTPUT_FILE

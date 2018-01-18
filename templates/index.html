@@ -29,8 +29,8 @@ $( document ).ready( function() {
             type: 'POST',
             data: formData,
             success: function(data) {
-                $("button#analyze").text("Analyze");
-                displayResult(data.result); //display the data
+                check_status();
+                //displayResult(data.result); //display the data
             },
             processData: false,
             contentType: false
@@ -54,6 +54,30 @@ $( document ).ready( function() {
         });
     });
 
+    function check_status(){
+        setTimeout(function(){
+            console.log("Poll for status: ");
+            $.ajax({
+                url: "/analysis/status",
+                type: 'POST',
+                success: function(data) {
+                    $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" />'+data.myStatus+' genes scanned.'); //display progress
+                    console.log(data.myStatus);
+                    if (data.myStatus != "Complete") {
+                        check_status()
+                    } else {
+                        $("button#analyze").text("Analyze");
+						$("span#analyze_status").text("");
+						displayResult(data.result);
+						
+                    };
+                },
+                processData: false,
+                contentType: false,
+            });
+        }, 100);
+    };
+
     function displayResult(raw_result) {
         //takes json data from controller and parses it to display the screen data
         var geneDict = $.parseJSON(raw_result)[0]; //get geneDict (first dict in json list object)
@@ -65,7 +89,7 @@ $( document ).ready( function() {
 
         var x_vals = Object.keys(geneDict); //get x value data (gene)
         var y_vals = [];
-        $("div.results").empty();
+        $("div.results").empty(); //clear old data stuff
         for (var gene in geneDict) {
             //Iterates through genes and displays information
             //HTML for each gene box
@@ -90,13 +114,15 @@ $( document ).ready( function() {
         }
         var data = [ trace1 ];
         var layout = {
-            tite: "Gene Screen Results (Frequency vs Gene Target)",
+            title: "Gene Screen Results (Frequency vs Gene Target)",
             xaxis: {
-                autorange: true
+                autorange: true,
+                title: "Frequency"
             },
             yaxis: {
                 type: 'log',
-                autorange: true
+                autorange: true,
+                title: "Gene Target"
             }
         }
 
@@ -127,13 +153,17 @@ $( document ).ready( function() {
         if ($(this).hasClass("restrained")) {
             $(this).find(".details").removeClass("invisible");
             $(this).removeClass("restrained");
-            var $window = $(window),
-                $element = $( $(this) ),
-                elementTop = $element.offset().top,
-                elementHeight = $element.height(),
-                viewportHeight = $window.height(),
-                scrollIt = elementTop - ((viewportHeight - elementHeight) / 2);
-            $("HTML, BODY").animate({scrollTop: scrollIt}, 500)
+            console.log($(this));
+            var $element = $( $(this) );
+            setTimeout(function(){
+                console.log($(this));
+                var $window = $(window),
+                    elementTop = $element.offset().top,
+                    elementHeight = $element.height(),
+                    viewportHeight = $window.height(),
+                    scrollIt = elementTop - ((viewportHeight - elementHeight) / 2);
+                $("HTML, BODY").animate({scrollTop: scrollIt}, 500);
+            }, 200);
         } else {
             $(this).find(".details").addClass("invisible");
             $(this).addClass("restrained");
@@ -155,7 +185,6 @@ $( document ).ready( function() {
 
 });
 </script>
-
 <h1>Analyze a Fastq File:</h1>
     <form id="data_submit" method="post" enctype="multipart/form-data">
     <div>
@@ -188,7 +217,7 @@ $( document ).ready( function() {
             <input name="library" id="library_file_upload" style="display: none;" class="file_upload" type="file" />
         </div>
     </div>
-    <button type="submit" id="analyze" class="btn btn-info">Analyze</button>
+    <button type="submit" id="analyze" class="btn btn-info">Analyze</button><span style="font-style: italic" id="analyze_status"></span>
     </form>
     <form id="result_submit" method="POST" enctype="multipart/form-data">
         <div>
