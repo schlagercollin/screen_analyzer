@@ -2,8 +2,68 @@
 Performs analysis of qfast file given a library file
 """
 
-import csv, sys, json
+import csv, sys, json, threading
 from collections import OrderedDict
+
+
+class parseThread(threading.Thread):
+    def __init__(self, qfast_file, library_file, output_file_json):
+        self.qfast_file = qfast_file
+        self.library_file = library_file
+        self.output_file_json = output_file_json
+        self.counter = 0
+        super().__init__()
+
+    def run(self):
+        library_dict = parse_lib(self.library_file)
+        self.counter = 0
+        results = {}
+        unmatched = {}
+        number_matched = 0
+        number_unmatched = 0
+        sorted_results = OrderedDict()
+        stats = {}
+        with open(self.qfast_file) as f:
+            for line_number, sequence in enumerate(f):
+                if line_number % (4) == 1:
+                    sys.stdout.write("\r%d" % self.counter)
+                    sys.stdout.flush()
+                    sequence = sequence[0:20]
+                    if sequence in library_dict:
+                        try:
+                            results[library_dict[sequence]["Target Gene Symbol"]]["frequency"] += 1
+                        except KeyError:
+                            results[library_dict[sequence]["Target Gene Symbol"]] = {}
+                            results[library_dict[sequence]["Target Gene Symbol"]]["frequency"] = 1
+                            try:
+                                results[library_dict[sequence]["Target Gene Symbol"]]["description"] = library_dict[sequence]["Description"]
+                            except KeyError:
+                                results[library_dict[sequence]["Target Gene Symbol"]]["description"] = None
+                            try:
+                                results[library_dict[sequence]["Target Gene Symbol"]]["summary"] = library_dict[sequence]["Summary"]
+                            except KeyError:
+                                results[library_dict[sequence]["Target Gene Symbol"]]["summary"] = None
+                        number_matched += 1
+                    else:
+                        try:
+                            unmatched[sequence] += 1
+                        except KeyError:
+                            unmatched[sequence] = 1
+                        number_unmatched += 1
+                    self.counter += 1
+        sorted_results = OrderedDict(sorted(list(results.items()), key=lambda x: (results[x[0]]['frequency']), reverse=True))
+        stats["number_matched"] = number_matched
+        stats["gene_count"] = len(sorted_results)
+        stats["number_unmatched"] = number_unmatched
+        with open(self.output_file_json, 'w') as output:
+            output.write(json.dumps([sorted_results, unmatched, stats]))
+        self.counter = "Complete"
+        self.myResult = json.dumps([sorted_results, stats])
+        return self.myResult
+    def status(self):
+        return self.counter
+
+        
 
 def parse_lib(filename):
     """Creates a dictionary whose keys are the target sequence and whose values are the gene data"""

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<script type="text/javascript">
+$( document ).ready( function() {
+    $("select.file_select").change(function(){
+        var file_upload_field = $(this).siblings("input.file_upload");
+        if ($(this).val() == "Upload your own") {
+            $(this).animate({
+                'max-width': 17
+            }, 200, function() {
+                file_upload_field.fadeIn(200);
+            });
+        } else {
+            file_upload_field.fadeOut(0);
+            $(this).animate({
+                'max-width': 600
+            }, 200, function () {
+
+            })
+        }
+    });
+    $("form#data_submit").submit(function(e) {
+        //Submit data analysis request (controller.analysis_submit())
+        e.preventDefault();
+        $("button#embellish").text("Embellishing...");
+        var formData = new FormData(this);
+        $.ajax({
+            url: "/embellish/submit",
+            type: 'POST',
+            data: formData,
+            success: function(data) {
+                $("button#embellish").text("Embellish");
+                alert("Embellish complete. Saved as: "+data.result); 
+            },
+            processData: false,
+            contentType: false
+        });
+    });
+});
+</script>
+<h1>Embellish a Library File:</h1>
+    <form id="data_submit" method="post" enctype="multipart/form-data">
+    <div>
+        <div>
+        Library File:
+            <select name="library" id="library_file_select" class="file_select">
+                {% for item in data_files['library'] %}
+                    <option>
+                        {{ item.capitalize() }}
+                    </option>
+                {% endfor %}
+                    <option>
+                        Upload your own
+                    </option>
+            </select>
+            <input name="library" id="library_file_upload" style="display: none;" class="file_upload" type="file" />
+        </div>
+    </div>
+    <button type="submit" id="embellish" class="btn btn-info">Embellish</button><span style="font-style: italic" id="analyze_status"></span>
+    </form>
+{% endblock %}

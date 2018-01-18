@@ -1,3 +1,4 @@
+#!/Users/collinschlager/anaconda/bin/python3
 """
 Flask controller for parse fastq webapp.
 """
@@ -6,6 +7,7 @@ import os, json, threading, sys
 from flask import Flask, render_template, request, jsonify, url_for
 from werkzeug.utils import secure_filename
 from screen_analyzer import *
+import library_embellish
 
 curdir = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(curdir, 'tmp/data')
@@ -74,13 +76,44 @@ def analysis_load():
         output = load_from_file(result_file)
         return jsonify(result=output)
 
+@app.route('/analysis/status', methods=['POST'])
+def analysis_status():
+    if request.method == 'POST':
+        result = None
+        output = check_status()
+        if output == "Complete":
+            result = get_result()
+        return jsonify(myStatus=output, result=result)
+
+@app.route('/analysis/status', methods=['POST'])
+def analysis_get_result():
+    if request.method == 'POST':
+        output = get_result()
+        return jsonify(result=output)
+
+global myThread
+myThread = None
+
 def analyze_data(fastq, library):
+    global myThread
     """wrapper for parse_qfast function. handles some path information"""
     print(UPLOAD_FOLDER, fastq, library)
     output_file = os.path.join(UPLOAD_FOLDER, "output", fastq+library+".json")
     library = os.path.join(UPLOAD_FOLDER, 'library', library)
     fastq = os.path.join(UPLOAD_FOLDER,'fastq', fastq)
-    return parse_qfast(fastq, library, output_file)
+    myThread = parseThread(fastq, library, output_file)
+    myThread.start()
+    return True
+
+def check_status():
+    global myThread
+    myStatus = myThread.status() 
+    return myThread.status()
+
+def get_result():
+    global myThread
+    myResult = myThread.myResult
+    return myResult
 
 
 @app.route('/')
@@ -91,10 +124,40 @@ def index():
     data_files = check_data_files()
     return render_template("index.html", data_files=data_files)
 
+class embellishThread(threading.Thread):
+    def __init__(self, FILE):
+        self.file = FILE
+        super().__init__()
+    def run(self):
+        print("Embellish started.")
+        library_embellish.embellish(self.file)
+
+@app.route('/embellish/submit', methods=['POST'])
+def embellish_load():
+    """on load click: fetches stashed result file or uploads and uses the new one
+    returns json object for display (see index.html)"""
+    if request.method == 'POST':
+        result_file = request.values['library']
+        if result_file == "Upload your own":
+            result_file = request.files['library']
+            result_file = upload_file(result_file, "library")
+        result_file = os.path.join(UPLOAD_FOLDER, "library", result_file)
+        #output = library_embellish.embellish(result_file)
+        myThread = embellishThread(result_file)
+        myThread.start()
+        output = "Embellishing process started. Check back for embellished file."
+        return jsonify(result=output)
+    
+
+@app.route('/embellish')
+def embellish():
+    """main route for embellish"""
+    data_files = check_data_files()
+    return render_template("embellish.html", data_files=data_files)
+
 
 
 
 if __name__ == '__main__':
-    print(sys.version)
     app.run(debug=True)
 
