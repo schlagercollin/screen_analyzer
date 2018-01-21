@@ -8,6 +8,7 @@ from flask import Flask, render_template, request, jsonify, url_for
 from werkzeug.utils import secure_filename
 from screen_analyzer import *
 import library_embellish
+#from count_guides_v4 import *
 
 curdir = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(curdir, 'tmp/data')
@@ -45,7 +46,7 @@ def check_data_files():
     return data_files
 
 
-@app.route('/analysis/submit', methods=['POST'])
+@app.route('/analysis/submit', methods=['POST']) #controls the "Analyze" submit button on the Analysis page
 def analysis_submit():
     """on analysis click: fetches stashed files or uploads and uses the new one
     returns json object for display (see index.html)"""
@@ -115,13 +116,13 @@ def get_result():
     myResult = myThread.myResult
     return myResult
 
-
+#for homepage, index page, and analysis page, use the index.html template
 @app.route('/')
 @app.route('/index')
 @app.route('/analysis')
 def index():
     """main index route. just updates current data files and returns them for drop down menu purposes"""
-    data_files = check_data_files()
+    data_files = check_data_files() #get the data files from fastq, library, and output folders
     return render_template("index.html", data_files=data_files)
 
 class embellishThread(threading.Thread):
