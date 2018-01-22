@@ -1,4 +1,4 @@
 .idea/
 *.fastq
-**.swp
-**.pyc
+*.swp
+*.pyc

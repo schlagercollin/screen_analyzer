@@ -2,7 +2,7 @@
 Performs analysis of qfast file given a library file
 """
 
-import csv, sys, json, threading
+import csv, sys, json, threading, math, os, copy
 from collections import OrderedDict
 
 
@@ -63,6 +63,26 @@ class parseThread(threading.Thread):
     def status(self):
         return self.counter
 
+def get_files():
+    dict1 = load_from_file(os.path.join('tmp/data/output', os.listdir('tmp/data/output')[2]), output="file")
+    dict2 = load_from_file(os.path.join('tmp/data/output', os.listdir('tmp/data/output')[-1]), output="file")
+    return dict1, dict2
+
+def compare(first, second, output="json"):
+    compare_dict = {}
+    for gene in first:
+        if gene in second:
+            value1 = first[gene]["frequency"]
+            value2 = second[gene]["frequency"]
+            ratio = value1 / value2
+            compare_dict[gene] = copy.deepcopy(first[gene])
+            compare_dict[gene]["frequency"] = math.log(ratio, 2)
+    sorted_results = compare_dict
+    #sorted_results = OrderedDict(sorted(list(compare_dict.items()), key=lambda x: (compare_dict[x[0]]["frequency"]), reverse=True))
+    if output=="json":
+        return json.dumps([sorted_results])
+    else:
+        return sorted_results
         
 
 def parse_lib(filename):
@@ -123,15 +143,21 @@ def parse_qfast(qfast_file, library_file, output_file_json):
     return json.dumps([sorted_results, stats])
 
 
-def load_from_file(file_name):
+def load_from_file(file_name, output="json"):
     """Loads json file produced by 'parse_qfast' and returns the same information as
     'parse_qfast' as if you analyzed the files for the first time."""
     with open(file_name, "r") as data_file:
         loaded_dictionaries = json.loads(data_file.read())
     matched = loaded_dictionaries[0]
-    unmatched = loaded_dictionaries[1]
-    stats = loaded_dictionaries[2]
-    return json.dumps([matched, stats])
+    #unmatched = loaded_dictionaries[1]
+    try:
+        stats = loaded_dictionaries[2]
+    except:
+        stats = []
+    if output=="json":
+        return json.dumps([matched, stats])
+    else:
+        return matched
 
 
 if __name__ == "__main__":
