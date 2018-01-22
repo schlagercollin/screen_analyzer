@@ -68,7 +68,7 @@ def count_spacers(fastq_file, output_file, countDict, guideGeneDict, geneCountDi
 		num_reads += 1
 		read_sequence = str.upper(str(record.seq))
 		guide = read_sequence[GUIDE_START:GUIDE_END] #get sgRNA sequence from read
-		if guide in countDict:
+		if guide in countDict: #only count reads that match a guide sequence exactly
 			countDict[guide] += 1; #add one to count for guide
 			perfect_matches += 1;
 			gene = guideGeneDict[guide]; #find gene associated with guide
@@ -323,6 +323,7 @@ def printAnalysesInputs(guideStatsDict, output_file):
 	mageckFile.close();
 	print "Printed RIGER and MaGeCK input files";
 
+############NEED TO ADD A FUNCTION THAT TAKES THE PLACE OF MAIN###########
 #main method that ties processes together
 def main(argv):
 	parser = argparse.ArgumentParser(description='Analyze sequencing data for sgRNA library distribution');
