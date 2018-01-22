@@ -4,10 +4,11 @@ from Bio import SeqIO
 from collections import OrderedDict
 import numpy as np
 import sys, math, os, csv
-import argparse, xlwt
+import xlwt
 import scipy.stats as stats
 import statsmodels.sandbox.stats.multicomp as compTool
-import annotate_functions
+import argparse
+#import annotate_functions
 
 #this method creates the dictionaries that map guide sequence to number to reads and guide sequence to gene name
 def createDictionaries(input_file):
@@ -304,26 +305,75 @@ def printGuideEnrichStats(guideStatsDict, output_file):
 def printAnalysesInputs(guideStatsDict, output_file):
 	guidesList = guideStatsDict.values();
 	guidesList.sort(key = lambda guide: guide.sequence); #sort on sequence so replicates can be easily combined later
-	#setup RIGER file
-	rigeroutputName = str(output_file+"_RIGER_input.csv");
-	rigerFile = open(rigeroutputName, 'w');
-	mywriter = csv.writer(rigerFile, delimiter=',');
-	mywriter.writerow(["WELL_ID", "GENE_ID", "biorep1"]);
 	#setup MaGeCK file
 	mageckoutputName = str(output_file+"_mageck_input.txt");
 	mageckFile = open(mageckoutputName, 'w');
 	mageckFile.write("sgRNA\tGene\tControl1\tSorted1\n");
 	count = 1; #need to track guide count for RIGER file
 	for guide in guidesList:
-		mywriter.writerow([count,guide.gene,guide.logFoldChange]);
 		mageckFile.write(guide.sequence+"\t"+guide.gene+"\t"+str(guide.unsortedReads)+"\t"+str(guide.sortedReads)+"\n");
 		count += 1; #update count
 
-	rigerFile.close();
 	mageckFile.close();
-	print "Printed RIGER and MaGeCK input files";
+	print "Printed MAGeCK input files";
 
-############NEED TO ADD A FUNCTION THAT TAKES THE PLACE OF MAIN###########
+#function to be called to analyze a single replicate for a screen
+def run_screen_analysis(unsorted_fastq, sorted_fastq, guides_file, output_file):
+	#necessary dictionaries to keep track of guide/gene info
+	countDict, guideGeneDict, geneCountDict, geneToGuideDict = createDictionaries(guides_file); 
+	print "created required dictionaries";
+
+	#count reads per guides and per gene for unsorted population if the fastq file is provided
+	unsortedGuideCountDict = dict(countDict);
+	unsortedGeneCountDict = dict(geneCountDict);
+	unsortedTotMatches = 0;	
+	print "Counting reads for unsorted population";
+	unsortedOutputName = str(output_file+"_unsorted");
+	perfect_matches = count_spacers(unsorted_fastq, unsortedOutputName, unsortedGuideCountDict, guideGeneDict, unsortedGeneCountDict);
+	unsortedTotMatches = perfect_matches;
+	#print gene related info for unsorted population
+	geneReadCounts(unsortedOutputName, unsortedGeneCountDict, geneToGuideDict, unsortedGuideCountDict, perfect_matches);
+	print "Done counting reads for unsorted population";
+
+	#count reads per guides and per gene for sorted population if the fastq file is provided
+	sortedGuideCountDict = dict(countDict);
+	sortedGeneCountDict = dict(geneCountDict);
+	sortedTotMatches = 0;
+	print "Counting reads for sorted population";
+	sortedOutputName = str(output_file+"_sorted");
+	perfect_matches = count_spacers(sorted_fastq, sortedOutputName, sortedGuideCountDict, guideGeneDict, sortedGeneCountDict);
+	sortedTotMatches = perfect_matches;
+	#print gene related info for sorted population
+	geneReadCounts(sortedOutputName, sortedGeneCountDict, geneToGuideDict, sortedGuideCountDict, perfect_matches);
+	print "Done counting reads for sorted population";
+
+	#perform enrichment analysis for genes if both unsorted and sorted files are provided
+	print "Performing enrichment analysis";
+	#look for genes enriched for reads
+	geneStatsDict = calcGeneEnrich(unsortedGeneCountDict, unsortedTotMatches, sortedGeneCountDict, sortedTotMatches);
+	printGeneEnrichStats(geneStatsDict, output_file);
+	#look for guides enriched for reads
+	guideStatsDict = calcGuideEnrich(unsortedGuideCountDict, unsortedTotMatches, sortedGuideCountDict, sortedTotMatches, guideGeneDict);
+	printGuideEnrichStats(guideStatsDict, output_file);
+	#print MaGeCK input files
+	printAnalysesInputs(guideStatsDict, output_file);
+	#perform mageck analysis
+	# mageckFile = str(output_file+"_mageck_input.txt");
+	# os.system("cp /Volumes/G-DRIVE\ slim/CRISPR\ Screens/Brie-library-controls.txt ."); #need to copy in control guides file
+	# command = "mageck test -k " + mageckFile + " -t 1 -c 0 -n " + str(output_file+"_mageck" + " --sort-criteria pos --gene-lfc-method alphamean --control-sgrna Brie-library-controls.txt"); 
+	# os.system(command);
+	# os.system("rm Brie-library-controls.txt"); #rm control guides file
+	# #annotate files
+	# print "Annotating Guides file and MaGeCK results";
+	# geneFuncsDict = annotate_functions.readFunctions();
+	# #annoate guide enrichment file
+	# guidesEnrichFile = output_file+"_guide_enrichment_calculation.csv";
+	# annotate_functions.annotateGuidesFile(guidesEnrichFile, geneFuncsDict);
+	# #annotate mageck results file
+	# mageckResults = output_file+"_mageck.gene_summary.txt";
+	# annotate_functions.annotateMageckFile(mageckResults, geneFuncsDict);
+
+
 #main method that ties processes together
 def main(argv):
 	parser = argparse.ArgumentParser(description='Analyze sequencing data for sgRNA library distribution');
@@ -368,31 +418,31 @@ def main(argv):
 		print "Done counting reads for sorted population";
 
 	#perform enrichment analysis for genes if both unsorted and sorted files are provided
-	if args.sorted_fastq != None and args.unsorted_fastq != None:
-		print "Performing enrichment analysis";
-		#look for genes enriched for reads
-		geneStatsDict = calcGeneEnrich(unsortedGeneCountDict, unsortedTotMatches, sortedGeneCountDict, sortedTotMatches);
-		printGeneEnrichStats(geneStatsDict, args.output_file);
-		#look for guides enriched for reads
-		guideStatsDict = calcGuideEnrich(unsortedGuideCountDict, unsortedTotMatches, sortedGuideCountDict, sortedTotMatches, guideGeneDict);
-		printGuideEnrichStats(guideStatsDict, args.output_file);
-		#print RIGER and MaGeCK input files
-		printAnalysesInputs(guideStatsDict, args.output_file);
-		#perform mageck analysis
-		mageckFile = str(args.output_file+"_mageck_input.txt");
-		os.system("cp /Volumes/G-DRIVE\ slim/CRISPR\ Screens/Brie-library-controls.txt ."); #need to copy in control guides file
-		command = "mageck test -k " + mageckFile + " -t 1 -c 0 -n " + str(args.output_file+"_mageck" + " --sort-criteria pos --gene-lfc-method alphamean --control-sgrna Brie-library-controls.txt"); 
-		os.system(command);
-		os.system("rm Brie-library-controls.txt"); #rm control guides file
-		#annotate files
-		print "Annotating Guides file and MaGeCK results";
-		geneFuncsDict = annotate_functions.readFunctions();
-		#annoate guide enrichment file
-		guidesEnrichFile = args.output_file+"_guide_enrichment_calculation.csv";
-		annotate_functions.annotateGuidesFile(guidesEnrichFile, geneFuncsDict);
-		#annotate mageck results file
-		mageckResults = args.output_file+"_mageck.gene_summary.txt";
-		annotate_functions.annotateMageckFile(mageckResults, geneFuncsDict);
+	# if args.sorted_fastq != None and args.unsorted_fastq != None:
+	# 	print "Performing enrichment analysis";
+	# 	#look for genes enriched for reads
+	# 	geneStatsDict = calcGeneEnrich(unsortedGeneCountDict, unsortedTotMatches, sortedGeneCountDict, sortedTotMatches);
+	# 	printGeneEnrichStats(geneStatsDict, args.output_file);
+	# 	#look for guides enriched for reads
+	# 	guideStatsDict = calcGuideEnrich(unsortedGuideCountDict, unsortedTotMatches, sortedGuideCountDict, sortedTotMatches, guideGeneDict);
+	# 	printGuideEnrichStats(guideStatsDict, args.output_file);
+	# 	#print RIGER and MaGeCK input files
+	# 	printAnalysesInputs(guideStatsDict, args.output_file);
+	# 	#perform mageck analysis
+	# 	mageckFile = str(args.output_file+"_mageck_input.txt");
+	# 	os.system("cp /Volumes/G-DRIVE\ slim/CRISPR\ Screens/Brie-library-controls.txt ."); #need to copy in control guides file
+	# 	command = "mageck test -k " + mageckFile + " -t 1 -c 0 -n " + str(args.output_file+"_mageck" + " --sort-criteria pos --gene-lfc-method alphamean --control-sgrna Brie-library-controls.txt"); 
+	# 	os.system(command);
+	# 	os.system("rm Brie-library-controls.txt"); #rm control guides file
+	# 	#annotate files
+	# 	print "Annotating Guides file and MaGeCK results";
+	# 	geneFuncsDict = annotate_functions.readFunctions();
+	# 	#annoate guide enrichment file
+	# 	guidesEnrichFile = args.output_file+"_guide_enrichment_calculation.csv";
+	# 	annotate_functions.annotateGuidesFile(guidesEnrichFile, geneFuncsDict);
+	# 	#annotate mageck results file
+	# 	mageckResults = args.output_file+"_mageck.gene_summary.txt";
+	# 	annotate_functions.annotateMageckFile(mageckResults, geneFuncsDict);
 
 
 
