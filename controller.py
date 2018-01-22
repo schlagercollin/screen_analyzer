@@ -45,6 +45,10 @@ def check_data_files():
     data_files['output'] = os.listdir(os.path.join(UPLOAD_FOLDER, 'output'))
     return data_files
 
+@app.route('/Bhaven')
+def helloBhaven():
+    data_files = check_data_files() #get the data files from fastq, library, and output folders
+    return render_template("index.html", data_files=data_files)
 
 @app.route('/analysis/submit', methods=['POST']) #controls the "Analyze" submit button on the Analysis page
 def analysis_submit():
