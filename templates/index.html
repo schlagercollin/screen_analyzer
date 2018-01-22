@@ -81,6 +81,7 @@ $( document ).ready( function() {
     function displayResult(raw_result) {
         //takes json data from controller and parses it to display the screen data
         var geneDict = $.parseJSON(raw_result)[0]; //get geneDict (first dict in json list object)
+        console.log(geneDict);
         var stats = $.parseJSON(raw_result)[1]; //get stats (second dict in json list object
 
         $("#number_matched").text(stats["number_matched"]); //update stats table
