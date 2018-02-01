@@ -115,6 +115,11 @@ def get_result():
     myResult = myThread.myResult
     return myResult
 
+@app.route('/compare')
+def compare():
+    data_files = check_data_files()
+    return render_template("compare.html", data_files=data_files)
+
 
 @app.route('/')
 @app.route('/index')
