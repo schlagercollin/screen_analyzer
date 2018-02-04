@@ -81,9 +81,10 @@ $( document ).ready( function() {
     function displayResult(raw_result) {
         //takes json data from controller and parses it to display the screen data
         var geneDict = $.parseJSON(raw_result)[0]; //get geneDict (first dict in json list object)
+        console.log("Begin display result!");
         console.log(geneDict);
-        var stats = $.parseJSON(raw_result)[1]; //get stats (second dict in json list object
 
+        var stats = $.parseJSON(raw_result)[1]; //get stats (second dict in json list object
         $("#number_matched").text(stats["number_matched"]); //update stats table
         $("#number_unmatched").text(stats["number_unmatched"]);
         $("#gene_count").text(stats["gene_count"]);
@@ -91,6 +92,7 @@ $( document ).ready( function() {
         var x_vals = Object.keys(geneDict); //get x value data (gene)
         var y_vals = [];
         $("div.results").empty(); //clear old data stuff
+        console.log("About to iterate.");
         for (var gene in geneDict) {
             //Iterates through genes and displays information
             //HTML for each gene box
@@ -105,7 +107,9 @@ $( document ).ready( function() {
                 //"</a>"
             );
             y_vals.push(geneDict[gene]["frequency"]); //add frequency for y value data
+            console.log("Iterating...");
         }
+        console.log("Done iterating.")
 
         //Plotly stuff
         var trace1 = {
@@ -129,7 +133,7 @@ $( document ).ready( function() {
 
         $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
 
-        Plotly.newPlot('plotDiv', data, layout); //create plot
+        //Plotly.newPlot('plotDiv', data, layout); //create plot
     };
 
     $("#search").on("keyup", function(){

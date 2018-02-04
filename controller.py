@@ -6,8 +6,9 @@ Flask controller for parse fastq webapp.
 import os, json, threading, sys
 from flask import Flask, render_template, request, jsonify, url_for
 from werkzeug.utils import secure_filename
-from screen_analyzer import *
+import screen_analyzer
 import library_embellish
+import time
 
 curdir = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(curdir, 'tmp/data')
@@ -73,7 +74,7 @@ def analysis_load():
             result_file = request.files['result_file']
             result_file = upload_file(result_file, "result")
         result_file = os.path.join(UPLOAD_FOLDER, "output", result_file)
-        output = load_from_file(result_file)
+        output = screen_analyzer.load_from_file(result_file)
         return jsonify(result=output)
 
 @app.route('/analysis/status', methods=['POST'])
@@ -101,7 +102,7 @@ def analyze_data(fastq, library):
     output_file = os.path.join(UPLOAD_FOLDER, "output", fastq+library+".json")
     library = os.path.join(UPLOAD_FOLDER, 'library', library)
     fastq = os.path.join(UPLOAD_FOLDER,'fastq', fastq)
-    myThread = parseThread(fastq, library, output_file)
+    myThread = screen_analyzer.parseThread(fastq, library, output_file)
     myThread.start()
     return True
 
@@ -120,6 +121,32 @@ def compare():
     data_files = check_data_files()
     return render_template("compare.html", data_files=data_files)
 
+@app.route('/compare/submit', methods=['POST'])
+def compare_submit():
+    """on analysis click: fetches stashed files or uploads and uses the new one
+    returns json object for display (see index.html)"""
+    if request.method == 'POST':
+        unsorted_pop = request.values['unsorted_pop']
+        if unsorted_pop == "Upload your own":
+            unsorted_pop = request.files['unsorted_pop']
+            unsorted_pop = upload_file(unsorted_pop, "fastq")
+        sorted_pop = request.values['sorted_pop']
+        if sorted_pop == "Upload your own":
+            sorted_pop = request.files['sorted_pop']
+            sorted_pop = upload_file(sorted_pop, "fastq")
+        output_file = request.values['output_file_name']
+        if output_file == '':
+            output_file = "comparison"+ str(int(time.time())) + ".json"
+        output = compare_data(unsorted_pop, sorted_pop, output_file)
+        return jsonify(result=output)
+
+def compare_data(unsorted_pop, sorted_pop, output_file):
+    """wrapper for compare function. handles some path information"""
+    output_file = os.path.join(UPLOAD_FOLDER, "comparisons", output_file)
+    unsorted_pop = os.path.join(UPLOAD_FOLDER, 'output', unsorted_pop)
+    sorted_pop = os.path.join(UPLOAD_FOLDER,'output', sorted_pop)
+    output = screen_analyzer.compare(unsorted_pop, sorted_pop, output_file)
+    return output
 
 @app.route('/')
 @app.route('/index')

@@ -22,15 +22,16 @@ $( document ).ready( function() {
     $("form#data_submit").submit(function(e) {
         //Submit data analysis request (controller.analysis_submit())
         e.preventDefault();
-        $("button#analyze").text("Analyzing...");
+        $("button#analyze").text("Comparing...");
         var formData = new FormData(this);
         $.ajax({
-            url: "/analysis/submit",
+            url: "/compare/submit",
             type: 'POST',
             data: formData,
             success: function(data) {
-                check_status();
-                //displayResult(data.result); //display the data
+                console.log(data.result);
+                displayResult(data.result);
+				$("button#analyze").text("Compare");
             },
             processData: false,
             contentType: false
@@ -46,7 +47,6 @@ $( document ).ready( function() {
             type: 'POST',
             data: formData,
             success: function(data) {
-                $("button#load_result").text("Load");
                 displayResult(data.result); //display the data
             },
             processData: false,
@@ -82,29 +82,33 @@ $( document ).ready( function() {
         //takes json data from controller and parses it to display the screen data
         var geneDict = $.parseJSON(raw_result)[0]; //get geneDict (first dict in json list object)
         console.log(geneDict);
-        var stats = $.parseJSON(raw_result)[1]; //get stats (second dict in json list object
+        try {
+            var stats = $.parseJSON(raw_result)[1]; //get stats (second dict in json list object
 
-        $("#number_matched").text(stats["number_matched"]); //update stats table
-        $("#number_unmatched").text(stats["number_unmatched"]);
-        $("#gene_count").text(stats["gene_count"]);
+            $("#number_matched").text(stats["number_matched"]); //update stats table
+            $("#number_unmatched").text(stats["number_unmatched"]);
+            $("#gene_count").text(stats["gene_count"]);
+        }
+        catch(err) {
+            console.log(err);
+        };
 
         var x_vals = Object.keys(geneDict); //get x value data (gene)
         var y_vals = [];
         $("div.results").empty(); //clear old data stuff
         for (var gene in geneDict) {
+            //Is there a faster way to do this?
             //Iterates through genes and displays information
             //HTML for each gene box
             $("div.results").append(
-                //"<a data-toggle='collapse' data-target='."+gene+"'>" +
                 "<div class='flex-item geneResult restrained' name="+gene+"><p><b>"+gene+"</b>" +
                 "<p style='font-size:0.5em'>"+geneDict[gene]['frequency']+"</p>" +
-                "</p>" +
+                "<p style='font-size:0.5em'>"+parseFloat(Math.round(geneDict[gene]['logRatio'] * 100) / 100).toFixed(2)+"</p>" +
                 "<p class='details invisible' style='font-size:0.5em'>"+geneDict[gene]['description']+"</p>" +
                 "<p class='details invisible' style='font-size:0.3em'>"+geneDict[gene]['summary']+"</p>" +
                 "</div>"
-                //"</a>"
             );
-            y_vals.push(geneDict[gene]["frequency"]); //add frequency for y value data
+            y_vals.push(geneDict[gene]["logRatio"]); //add frequency for y value data
         }
 
         //Plotly stuff
@@ -115,15 +119,16 @@ $( document ).ready( function() {
         }
         var data = [ trace1 ];
         var layout = {
-            title: "Gene Screen Results (Frequency vs Gene Target)",
+            title: "Comparison Results (Log_2_Ratio vs Gene Target)",
             xaxis: {
                 autorange: true,
-                title: "Frequency"
+                title: "Gene Target"
             },
             yaxis: {
-                type: 'log',
+                //type: 'log',
+				zeroline: false,
                 autorange: true,
-                title: "Gene Target"
+                title: "Log2Ratio"
             }
         }
 
@@ -191,8 +196,8 @@ $( document ).ready( function() {
     <div>
         <div>
             Unsorted/Control Population:
-            <select name="fastq" id="qFast_file_select" class="file_select">
-                {% for item in data_files['fastq'] %}
+            <select name="unsorted_pop" id="qFast_file_select" class="file_select">
+                {% for item in data_files['output'] %}
                     <option>
                         {{ item.capitalize() }}
                     </option>
@@ -201,12 +206,12 @@ $( document ).ready( function() {
                         Upload your own
                     </option>
             </select>
-            <input name="fastq" id="qFast_file_upload" style="display: none;" class="file_upload" type="file"/>
+            <input name="unsorted_pop" style="display: none;" class="file_upload" type="file"/>
         </div>
         <div>
         Sorted/Selected Population:
-            <select name="library" id="library_file_select" class="file_select">
-                {% for item in data_files['library'] %}
+            <select name="sorted_pop" id="library_file_select" class="file_select">
+                {% for item in data_files['output'] %}
                     <option>
                         {{ item.capitalize() }}
                     </option>
@@ -215,10 +220,10 @@ $( document ).ready( function() {
                         Upload your own
                     </option>
             </select>
-            <input name="library" id="library_file_upload" style="display: none;" class="file_upload" type="file" />
+            <input name="sorted_pop" style="display: none;" class="file_upload" type="file" />
         </div>
     </div>
-    <input style="width: 200px; margin: 10px;" type=text placeholder="Enter output file name." /><button type="submit" id="analyze" class="btn btn-info">Analyze</button><span style="font-style: italic" id="analyze_status"></span>
+    <input name="output_file_name" style="width: 200px; margin: 10px;" type=text placeholder="Enter output file name." /><button type="submit" id="analyze" class="btn btn-info">Compare</button><span style="font-style: italic" id="analyze_status"></span>
     </form>
        <div id="plotDiv"></div>
     <div class="result_wrapper" style="display: none;">
