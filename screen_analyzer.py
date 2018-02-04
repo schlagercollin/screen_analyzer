@@ -31,18 +31,19 @@ class parseThread(threading.Thread):
                     sequence = sequence[0:20]
                     if sequence in library_dict:
                         try:
-                            results[library_dict[sequence]["Target Gene Symbol"]]["frequency"] += 1
+                            # spaces or .'s in the .csv file?:
+                            results[library_dict[sequence]["Target.Gene.Symbol"]]["frequency"] += 1
                         except KeyError:
-                            results[library_dict[sequence]["Target Gene Symbol"]] = {}
-                            results[library_dict[sequence]["Target Gene Symbol"]]["frequency"] = 1
+                            results[library_dict[sequence]["Target.Gene.Symbol"]] = {}
+                            results[library_dict[sequence]["Target.Gene.Symbol"]]["frequency"] = 1
                             try:
-                                results[library_dict[sequence]["Target Gene Symbol"]]["description"] = library_dict[sequence]["Description"]
+                                results[library_dict[sequence]["Target.Gene.Symbol"]]["description"] = library_dict[sequence]["Description"]
                             except KeyError:
-                                results[library_dict[sequence]["Target Gene Symbol"]]["description"] = None
+                                results[library_dict[sequence]["Target.Gene.Symbol"]]["description"] = None
                             try:
-                                results[library_dict[sequence]["Target Gene Symbol"]]["summary"] = library_dict[sequence]["Summary"]
+                                results[library_dict[sequence]["Target.Gene.Symbol"]]["summary"] = library_dict[sequence]["Summary"]
                             except KeyError:
-                                results[library_dict[sequence]["Target Gene Symbol"]]["summary"] = None
+                                results[library_dict[sequence]["Target.Gene.Symbol"]]["summary"] = None
                         number_matched += 1
                     else:
                         try:
@@ -68,17 +69,21 @@ def get_files():
     dict2 = load_from_file(os.path.join('tmp/data/output', os.listdir('tmp/data/output')[-1]), output="file")
     return dict1, dict2
 
-def compare(first, second, output="json"):
+def compare(first, second, output_file_json, output="json"):
+    first = load_from_file(first, output="file")
+    second = load_from_file(second, output="file")
     compare_dict = {}
     for gene in first:
         if gene in second:
             value1 = first[gene]["frequency"]
             value2 = second[gene]["frequency"]
-            ratio = value1 / value2
+            ratio = value2 / value1 # sorted / unsorted
             compare_dict[gene] = copy.deepcopy(first[gene])
-            compare_dict[gene]["frequency"] = math.log(ratio, 2)
-    sorted_results = compare_dict
-    #sorted_results = OrderedDict(sorted(list(compare_dict.items()), key=lambda x: (compare_dict[x[0]]["frequency"]), reverse=True))
+            compare_dict[gene]["logRatio"] = math.log(ratio, 2)
+    #sorted_results = compare_dict
+    sorted_results = OrderedDict(sorted(list(compare_dict.items()), key=lambda x: (compare_dict[x[0]]["logRatio"]), reverse=True))
+    with open(output_file_json, 'w') as output_file:
+        output_file.write(json.dumps([sorted_results]))
     if output=="json":
         return json.dumps([sorted_results])
     else:
@@ -91,7 +96,7 @@ def parse_lib(filename):
     with open(filename) as lib_file:
         reader = csv.DictReader(lib_file)  # read rows into a dictionary format
         for row in reader:
-            library_dict[row["sgRNA Target Sequence"]] = row
+            library_dict[row["sgRNA.Target.Sequence"]] = row
     return library_dict
 
 def parse_qfast(qfast_file, library_file, output_file_json):
@@ -99,6 +104,7 @@ def parse_qfast(qfast_file, library_file, output_file_json):
     containing various information (sequence, frequency, description, summary) about
     a given matched gene."""
     library_dict = parse_lib(library_file)
+    print(qfast_file)
     counter = 0
     results = {}
     unmatched = {}

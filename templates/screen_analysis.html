@@ -41,11 +41,13 @@ $( document ).ready( function() {
         e.preventDefault();
         $("button#load_result").text("Loading...");
         var formData = new FormData(this);
+        console.log("Made it aqui.");
         $.ajax({
             url: "/analysis/load",
             type: 'POST',
             data: formData,
             success: function(data) {
+                console.log("Made it here");
                 $("button#load_result").text("Load");
                 displayResult(data.result); //display the data
             },
