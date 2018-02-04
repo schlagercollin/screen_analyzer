@@ -2,3 +2,5 @@
 *.fastq
 *.swp
 *.pyc
+*.json
+*.csv
