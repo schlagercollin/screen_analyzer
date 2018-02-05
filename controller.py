@@ -40,9 +40,10 @@ def upload_file(myfile, file_type):
 def check_data_files():
     """get data files and return them"""
     data_files = {}
-    data_files['fastq'] = os.listdir(os.path.join(UPLOAD_FOLDER, 'fastq'))
-    data_files['library'] = os.listdir(os.path.join(UPLOAD_FOLDER, 'library'))
-    data_files['output'] = os.listdir(os.path.join(UPLOAD_FOLDER, 'output'))
+
+    data_files['fastq'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'fastq')) if not f.startswith('.')]
+    data_files['library'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'library')) if not f.startswith('.')]
+    data_files['output'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'output')) if not f.startswith('.')]
     return data_files
 
 
