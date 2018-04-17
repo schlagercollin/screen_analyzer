@@ -2,7 +2,7 @@
 Performs analysis of qfast file given a library file
 """
 
-import csv, sys, json, threading, math, os, copy, time
+import csv, sys, json, threading, math, os, copy, time, datetime
 from collections import OrderedDict
 
 
@@ -23,7 +23,7 @@ class parseThread(threading.Thread):
         unmatched = {}
         number_matched = 0
         number_unmatched = 0
-        stats = {'time': time.time(),
+        stats = {'time': str(datetime.date.today()),
                     'total_reads': 0,
                     'number_aligned': 0,
                     'percent_aligned': 0,
@@ -101,7 +101,7 @@ class parseThread(threading.Thread):
         sorted_results = OrderedDict(sorted(list(streamlined_result_dict.items()), key=lambda x: (streamlined_result_dict[x[0]]['Frequency']), reverse=True))
 
         with open(self.stats_output_file, "w") as outfile:
-            json.dump(stats, outfile)
+            json.dump([sorted_results, unmatched, stats], outfile)
 
         self.myResult = json.dumps([sorted_results,unmatched,stats])
         self.counter = "Complete"
@@ -114,13 +114,13 @@ def get_files():
     return dict1, dict2
 
 def compare(first, second, output_file_json, output="json"):
-    first = load_from_file(first, output="file")
-    second = load_from_file(second, output="file")
+    first,blank,blank = load_from_file(first, output="file")
+    second,blank,blank = load_from_file(second, output="file")
     compare_dict = {}
     for gene in first:
         if gene in second:
-            value1 = first[gene]["frequency"]
-            value2 = second[gene]["frequency"]
+            value1 = first[gene]["Frequency"]
+            value2 = second[gene]["Frequency"]
             ratio = value2 / value1 # sorted / unsorted
             compare_dict[gene] = copy.deepcopy(first[gene])
             compare_dict[gene]["logRatio"] = math.log(ratio, 2)
@@ -214,7 +214,7 @@ def parse_qfast(qfast_file, library_file, frequency_output_file, unmatched_outpu
     write_to_file(unmatched, unmatched_output_file)
 
     with open(stats_output_file, "w") as outfile:
-        json.dump(stats, outfile)
+        json.dump([sorted_results, unmatched, stats], outfile)
 
     return library_dict, stats
 
@@ -231,40 +231,57 @@ def write_to_file(library_dict, file_name):
             writer.writerow(library_dict[item])
     print("Done writing output!")
 
-def load_from_file_beta(file_name, output="json"):
+def load_from_csv(file_name):
     library_dict = {}
+    unmatched = {}
+    streamlined_result_dict = OrderedDict()
     with open(file_name, "r") as lib_file:
         reader = csv.DictReader(lib_file)  # read rows into a dictionary format
         for row in reader:
-            library_dict[row["sgRNA Target Sequence"]] = row
-    with open(file_name, "r") as data_file:
-        loaded_dictionaries = json.loads(data_file.read())
-    matched = loaded_dictionaries[0]
-    #unmatched = loaded_dictionaries[1]
-    try:
-        stats = loaded_dictionaries[2]
-    except:
-        stats = []
-    if output=="json":
-        return json.dumps([matched, stats])
-    else:
-        return matched
+            if int(row["Frequency"]) > 0:
+                #print(row["Target Gene Symbol"], row["Frequency"])
+                library_dict[row["sgRNA Target Sequence"]] = row
+                symbol_key = row["Target Gene Symbol"]
+                try:
+                    streamlined_result_dict[symbol_key]["Frequency"] += int(row["Frequency"])
+                except KeyError:
+                    streamlined_result_dict[symbol_key] = {}
+                    streamlined_result_dict[symbol_key]["Frequency"] = int(row["Frequency"])
+                    streamlined_result_dict[symbol_key]["Description"] = row["Description"]
+                    streamlined_result_dict[symbol_key]["Summary"] = row["Summary"]
+    stats = {'time': time.time(),
+                'total_reads': 0,
+                'number_aligned': 0,
+                'percent_aligned': 0,
+                'number_unmatched': 0,
+                'percent_guides_zero_reads': 0,
+                'hundred_plus_reads': 0,
+                'percent_hundred_plus_reads': 0,
+                'percent_genes_zero_reads': 0,
+                'output_file': 0,
+                'output_unmatched_file': 0
+    }
+    sorted_results = OrderedDict(sorted(list(streamlined_result_dict.items()), key=lambda x: (streamlined_result_dict[x[0]]['Frequency']), reverse=True))
+    print("Ready to return.")
+    return json.dumps([sorted_results, unmatched, stats])
 
 def load_from_file(file_name, output="json"):
     """Loads json file produced by 'parse_qfast' and returns the same information as
     'parse_qfast' as if you analyzed the files for the first time."""
-    with open(file_name, "r") as data_file:
-        loaded_dictionaries = json.loads(data_file.read())
-    matched = loaded_dictionaries[0]
-    #unmatched = loaded_dictionaries[1]
-    try:
-        stats = loaded_dictionaries[2]
-    except:
-        stats = []
-    if output=="json":
-        return json.dumps([matched, stats])
+    print(file_name[-4:])
+    if file_name[-4:] == ".csv":
+        return load_from_csv(file_name)
     else:
-        return matched
+        with open(file_name, "r") as data_file:
+            loaded_dictionaries = json.loads(data_file.read())
+        print(loaded_dictionaries)
+        sorted_results = loaded_dictionaries[0]
+        unmatched = loaded_dictionaries[1]
+        stats = loaded_dictionaries[2]
+        if output=="json":
+            return json.dumps([sorted_results, unmatched, stats])
+        else:
+            return sorted_results, unmatched, stats
 
 
 if __name__ == "__main__":
