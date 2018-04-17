@@ -58,11 +58,12 @@ def analysis_submit():
             fastq = upload_file(fastq, "fastq")
         library = request.values['library']
         print("Request: ", request.files)
+        output_file_name = request.values['file_name']
         if 'library' in request.files and request.files['library'].filename != '':
             library = request.files['library']
             print("File: ",library)
             library = upload_file(library, "library")
-        output = analyze_data(fastq, library)
+        output = analyze_data(fastq, library, output_file_name)
         return jsonify(result=output)
 
 @app.route('/analysis/load', methods=['POST'])
@@ -83,6 +84,7 @@ def analysis_status():
     if request.method == 'POST':
         result = None
         output = check_status()
+        print(output)
         if output == "Complete":
             result = get_result()
         return jsonify(myStatus=output, result=result)
@@ -96,20 +98,22 @@ def analysis_get_result():
 global myThread
 myThread = None
 
-def analyze_data(fastq, library):
+def analyze_data(fastq, library, file_name):
     global myThread
     """wrapper for parse_qfast function. handles some path information"""
     print(UPLOAD_FOLDER, fastq, library)
-    output_file = os.path.join(UPLOAD_FOLDER, "output", fastq+library+".json")
+    matched_file = os.path.join(UPLOAD_FOLDER, "output", file_name+"_matched.csv")
+    unmatched_file = os.path.join(UPLOAD_FOLDER, "output", file_name+"_unmatched.csv")
+    stats_file = os.path.join(UPLOAD_FOLDER, "output", file_name+"_stats.json")
     library = os.path.join(UPLOAD_FOLDER, 'library', library)
     fastq = os.path.join(UPLOAD_FOLDER,'fastq', fastq)
-    myThread = screen_analyzer.parseThread(fastq, library, output_file)
+    myThread = screen_analyzer.parseThread(fastq, library, matched_file, unmatched_file, stats_file)
     myThread.start()
     return True
 
 def check_status():
     global myThread
-    myStatus = myThread.status() 
+    myStatus = myThread.status()
     return myThread.status()
 
 def get_result():
@@ -180,7 +184,7 @@ def embellish_load():
         myThread.start()
         output = "Embellishing process started. Check back for embellished file."
         return jsonify(result=output)
-    
+
 
 @app.route('/embellish')
 def embellish():
@@ -193,4 +197,3 @@ def embellish():
 
 if __name__ == '__main__':
     app.run(debug=True)
-
