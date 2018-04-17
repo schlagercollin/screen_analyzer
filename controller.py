@@ -104,7 +104,7 @@ def analyze_data(fastq, library, file_name):
     print(UPLOAD_FOLDER, fastq, library)
     matched_file = os.path.join(UPLOAD_FOLDER, "output", file_name+"_matched.csv")
     unmatched_file = os.path.join(UPLOAD_FOLDER, "output", file_name+"_unmatched.csv")
-    stats_file = os.path.join(UPLOAD_FOLDER, "output", file_name+"_stats.json")
+    stats_file = os.path.join(UPLOAD_FOLDER, "output", file_name+".json")
     library = os.path.join(UPLOAD_FOLDER, 'library', library)
     fastq = os.path.join(UPLOAD_FOLDER,'fastq', fastq)
     myThread = screen_analyzer.parseThread(fastq, library, matched_file, unmatched_file, stats_file)
