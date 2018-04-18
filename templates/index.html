@@ -93,6 +93,7 @@ $( document ).ready( function() {
         var x_vals = [];
         var y_vals = [];
         var text = [];
+        var colors = [];
         //var x_vals = Object.keys(library_dict); //get x value data (gene)
         $("div.results").empty(); //clear old data stuff
         console.log("About to iterate.");
@@ -122,6 +123,7 @@ $( document ).ready( function() {
             x_vals.push(x); //add frequency for y value data
             y_vals.push(y);
             text.push(library_dict[gene][0]);
+            //colors.push('#'+Math.random().toString(16).substr(-6));
             counter += 1;
             if (counter >= 1000){
                 break;
@@ -138,7 +140,11 @@ $( document ).ready( function() {
             x: x_vals,
             y: y_vals,
             text: text,
-            mode: 'markers'
+            mode: 'markers',
+            marker: {
+                //color: colors,
+                line: {width: 1}
+            }
         }
         var data = [ trace1 ];
         var layout = {

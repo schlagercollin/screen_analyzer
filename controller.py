@@ -85,7 +85,7 @@ def load_from_file(result_file):
         reader = csv.reader(csv_file)
         next(reader)
         unsorted_list = list(reader)
-    print(unsorted_list)
+    #print(unsorted_list)
     #unsorted_list.sort(key=lambda x: float(x[7]), reverse=True)
     return unsorted_list
 
