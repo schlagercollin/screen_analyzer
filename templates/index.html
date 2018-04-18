@@ -80,39 +80,56 @@ $( document ).ready( function() {
 
     function displayResult(raw_result) {
         //takes json data from controller and parses it to display the screen data
-        var library_dict = $.parseJSON(raw_result)[0]; //get library_dict (first dict in json list object)
+        //console.log(raw_result);
+        //var library_dict = $.parseJSON(raw_result); //get library_dict (first dict in json list object)
+        var library_dict = raw_result;
+        //console.log(library_dict.length);
         $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" /> Crunching numbers...');
-        var unmatched_dict = $.parseJSON(raw_result)[1];
-        var stats = $.parseJSON(raw_result)[2]; //get stats (second dict in json list object
-        for (var stat in stats) {
-            $("#stats_table").append("<tr><td>"+stat+"</td><td>"+stats[stat]+"</td></tr>");
-        };
-        var x_vals = Object.keys(library_dict); //get x value data (gene)
+        //var unmatched_dict = $.parseJSON(raw_result)[1];
+        //var stats = $.parseJSON(raw_result)[2]; //get stats (second dict in json list object
+        //for (var stat in stats) {
+        //    $("#stats_table").append("<tr><td>"+stat+"</td><td>"+stats[stat]+"</td></tr>");
+        //};
+        var x_vals = [];
         var y_vals = [];
+        var text = [];
+        //var x_vals = Object.keys(library_dict); //get x value data (gene)
         $("div.results").empty(); //clear old data stuff
         console.log("About to iterate.");
-        var x_vals_length = x_vals.length;
+        //var x_vals_length = x_vals.length;
         var counter = 0;
+        var x = 0;
+        var y = 0;
         for (var gene in library_dict) {
-            if (library_dict[gene]["Frequency"] > 0){
-                //Iterates through genes and displays information
-                //HTML for each gene box
-                $("div.results").append(
-                    //"<a data-toggle='collapse' data-target='."+gene+"'>" +
-                    "<div class='flex-item geneResult restrained' name="+gene+"><p><b>"+gene+"</b>" +
-                    "<p style='font-size:0.5em'>"+library_dict[gene]['Frequency']+"</p>" +
-                    "</p>" +
-                    "<p class='details invisible' style='font-size:0.5em'>"+library_dict[gene]['Description']+"</p>" +
-                    "<p class='details invisible' style='font-size:0.3em'>"+library_dict[gene]['Summary']+"</p>" +
-                    "</div>"
-                    //"</a>"
-                );
-                y_vals.push(library_dict[gene]["Frequency"]); //add frequency for y value data
-            };
+        //console.log(library_dict[gene][3]);
+            //console.log(library_dict[gene][0]);
+            //Iterates through genes and displays information
+            //HTML for each gene box
+            x = parseFloat(library_dict[gene][7]).toFixed(5);
+            y = (-1*Math.log2(parseFloat(library_dict[gene][1]))).toFixed(5);
+            $("div.results").append(
+                //"<a data-toggle='collapse' data-target='."+gene+"'>" +
+                "<div class='flex-item geneResult restrained' name="+library_dict[gene][0]+"><p><b>"+library_dict[gene][0]+"</b></p>" +
+                "<p style='font-size:0.5em'>"+x+"</p>" +
+                "<p style='font-size:0.5em'>"+y+"</p>" +
+                "<p class='details invisible' style='font-size:0.5em'>"+library_dict[gene][9]+"</p>" +
+                "<p class='details invisible' style='font-size:0.3em'>"+library_dict[gene][8]+"</p>" +
+                "</div>"
+                //"</a>"
+            );
+            //console.log(-1*Math.log2(parseFloat(library_dict[gene][1])));
+            //console.log(x,y);
+            x_vals.push(x); //add frequency for y value data
+            y_vals.push(y);
+            text.push(library_dict[gene][0]);
             counter += 1;
-            $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" />'+'Crunching numbers... ( '+(counter/x_vals_length)*100+'% )');
+            if (counter >= 1000){
+                break;
+            }
+            console.log("Iterating...");
+            //$("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" />'+'Crunching numbers... ( '+(counter/x_vals_length)*100+'% )');
 
-        }
+        };
         console.log("Done iterating.")
         $("span#analyze_status").html("");
 
@@ -120,6 +137,7 @@ $( document ).ready( function() {
         var trace1 = {
             x: x_vals,
             y: y_vals,
+            text: text,
             mode: 'markers'
         }
         var data = [ trace1 ];
@@ -130,10 +148,11 @@ $( document ).ready( function() {
                 title: "Gene Target"
             },
             yaxis: {
-                type: 'log',
+                //type: 'log',
                 autorange: true,
                 title: "Frequency"
-            }
+            },
+            hovermode:'closest'
         }
 
         $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results

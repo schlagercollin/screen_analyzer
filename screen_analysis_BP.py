@@ -16,15 +16,18 @@ def createDictionaries(input_file):
 	guideGeneDict = {}; #dictionary to keep track of which gene each guide belongs to
 	geneCountDict = {}; #dictionary to keep track of the read counts for a gene
 	geneToGuideDict = {}; #dictionary to keep track of the sgRNAs for a gene
+	geneToDescriptionDict = {}; #dictionary to keep track of the description and summary for a gene
 	# open library of guide sequences (.csv file) and create dictionary of read counts for each guide where count is initialized to 0
 	try:
 		with open(input_file, mode='rU') as infile:
-			reader = csv.reader(infile);
-			reader.next();
+			reader = csv.DictReader(infile);
+			#reader.next();
 			for row in reader:
-				guideSeq = row[7];
-				countDict[guideSeq] = 0; #initialize sequence read count in countDict
-				gene = row[2];
+				guideSeq = row["sgRNA Target Sequence"];
+				description = row["Description"];
+				summary = row["Summary"];
+				countDict[guideSeq] = 0 #initialize sequence read count in countDict
+				gene = row["Target Gene Symbol"];
 				guideGeneDict[guideSeq] = gene; #create guide->gene mapping in guideGeneDict
 				geneCountDict[gene] = 0; #initialize read count for each gene
 				#create gene->list of sgRNAs in geneToGuideDict
@@ -32,9 +35,15 @@ def createDictionaries(input_file):
 					geneToGuideDict[gene] = [guideSeq];
 				else:
 					(geneToGuideDict[gene]).append(guideSeq);
+				if geneToDescriptionDict.get(gene) == None:
+					geneToDescriptionDict[gene] = {}
+					geneToDescriptionDict[gene]["Description"] = description
+					geneToDescriptionDict[gene]["Summary"] = summary
+				else:
+					pass
 	except:
 		print  'could not open', input_file;
-	return countDict, guideGeneDict, geneCountDict, geneToGuideDict;
+	return countDict, guideGeneDict, geneCountDict, geneToGuideDict, geneToDescriptionDict;
 
 
 GUIDE_START = 0 #start index of guide sequence
@@ -66,6 +75,8 @@ def count_spacers(fastq_file, output_file, countDict, guideGeneDict, geneCountDi
 	# process reads in fastq file
 	readiter = SeqIO.parse(handle, "fastq")
 	for record in readiter: #contains the seq and Qscore etc.
+		sys.stdout.write("\r%d" % num_reads)
+		sys.stdout.flush()
 		num_reads += 1
 		read_sequence = str.upper(str(record.seq))
 		guide = read_sequence[GUIDE_START:GUIDE_END] #get sgRNA sequence from read
@@ -201,8 +212,10 @@ def geneReadCounts(outputFileName, geneCountDict, geneToGuideDict, countDict, pe
 
 #class to hold information about gene
 class Gene:
-	def __init__(self, name, unsortedReads, unsortedTotal, sortedReads, sortedTotal):
+	def __init__(self, name, unsortedReads, unsortedTotal, sortedReads, sortedTotal, fold_change, summary, description):
 		self.name = name; #keeps track of gene name
+		self.description = description;
+		self.summary = summary;
 		self.unsortedReads = unsortedReads;
 		self.unsortedTotal = unsortedTotal;
 		#sorted stats
@@ -211,15 +224,29 @@ class Gene:
 		#p-values
 		self.enrichPVal = 0;
 		self.adjEnrichPVal = 0;
+		#fold change
+		self.foldChange = 0;
 
 #extract gene names and read counts from unsorted and sorted populations, and perform Fisher's exact test to determine enrichment p-value
-def calcGeneEnrich(unsortedGeneCountDict, unsortedTotMatches, sortedGeneCountDict, sortedTotMatches):
+def calcGeneEnrich(unsortedGeneCountDict, unsortedTotMatches, sortedGeneCountDict, sortedTotMatches, descriptionDict):
 	geneStatsDict = {}; #new dictionary to hold Gene objects
 	enrichPVals = [];
+	total_keys = len(unsortedGeneCountDict.keys())
 	keys = unsortedGeneCountDict.keys();
+	counter = 0
 	for key in keys:
+		counter += 0
+		progress = (counter/total_keys)*100
+		sys.stdout.write("\r%d" % progress)
+		sys.stdout.flush()
 		#make new gene object with the correct counts
-		gene = Gene(key, unsortedGeneCountDict[key], unsortedTotMatches, sortedGeneCountDict[key], sortedTotMatches);
+		unsorted_count = unsortedGeneCountDict[key]
+		sorted_count = sortedGeneCountDict[key]
+		try:
+			fold_change = math.log(sorted_count/unsorted_count, 2)
+		except:
+			fold_change = 10
+		gene = Gene(key, unsortedGeneCountDict[key], unsortedTotMatches, sortedGeneCountDict[key], sortedTotMatches, fold_change, descriptionDict[key]["Summary"], descriptionDict[key]["Description"]);
 		geneStatsDict[key] = gene;
 		oddsratio, pValue = stats.fisher_exact([[gene.unsortedReads, gene.unsortedTotal], [gene.sortedReads, gene.sortedTotal]]);
 		gene.enrichPVal = pValue;
@@ -240,9 +267,9 @@ def printGeneEnrichStats(geneStatsDict, output_file):
 	outputName = str(output_file+"_gene_enrichment_calculation.csv");
 	with open(outputName, 'w') as csvfile:
 		mywriter = csv.writer(csvfile, delimiter=',');
-		mywriter.writerow(["Gene Name", "FDR-corrected p-value", "p-value", "Reads in Unsorted Population", "Total Reads in Unsorted Population", "Reads in Sorted Population", "Total Reads in Sorted Population"]);
+		mywriter.writerow(["Gene Name", "FDR-corrected p-value", "p-value", "Reads in Unsorted Population", "Total Reads in Unsorted Population", "Reads in Sorted Population", "Total Reads in Sorted Population","Fold Change", "Summary","Description"]);
 		for gene in genesList:
-			mywriter.writerow([gene.name, gene.adjEnrichPVal, gene.enrichPVal, gene.unsortedReads, gene.unsortedTotal, gene.sortedReads, gene.sortedTotal]);
+			mywriter.writerow([gene.name, gene.adjEnrichPVal, gene.enrichPVal, gene.unsortedReads, gene.unsortedTotal, gene.sortedReads, gene.sortedTotal, gene.foldChange, gene.summary, gene.description]);
 		print "Printed Gene Enrichment stats";
 
 #class to hold information about each guide
@@ -320,7 +347,7 @@ def printAnalysesInputs(guideStatsDict, output_file):
 #function to be called to analyze a single replicate for a screen
 def run_screen_analysis(unsorted_fastq, sorted_fastq, guides_file, output_file):
 	#necessary dictionaries to keep track of guide/gene info
-	countDict, guideGeneDict, geneCountDict, geneToGuideDict = createDictionaries(guides_file);
+	countDict, guideGeneDict, geneCountDict, geneToGuideDict, geneToDescriptionDict = createDictionaries(guides_file);
 	print "created required dictionaries";
 
 	#count reads per guides and per gene for unsorted population if the fastq file is provided
@@ -390,7 +417,7 @@ def main(argv):
 		sys.exit();
 
 	#necessary dictionaries to keep track of guide/gene info
-	countDict, guideGeneDict, geneCountDict, geneToGuideDict = createDictionaries(args.guides_file);
+	countDict, guideGeneDict, geneCountDict, geneToGuideDict, geneToDescriptionDict = createDictionaries(args.guides_file);
 	print "created required dictionaries";
 	#count reads per guides and per gene for unsorted population if the fastq file is provided
 	unsortedGuideCountDict = dict(countDict);
@@ -421,7 +448,7 @@ def main(argv):
 	if args.sorted_fastq != None and args.unsorted_fastq != None:
 		print "Performing enrichment analysis";
 	 	#look for genes enriched for reads
-	 	geneStatsDict = calcGeneEnrich(unsortedGeneCountDict, unsortedTotMatches, sortedGeneCountDict, sortedTotMatches);
+	 	geneStatsDict = calcGeneEnrich(unsortedGeneCountDict, unsortedTotMatches, sortedGeneCountDict, sortedTotMatches, geneToDescriptionDict);
 	 	printGeneEnrichStats(geneStatsDict, args.output_file);
 	 	#look for guides enriched for reads
 	 	guideStatsDict = calcGuideEnrich(unsortedGuideCountDict, unsortedTotMatches, sortedGuideCountDict, sortedTotMatches, guideGeneDict);
