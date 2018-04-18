@@ -3,7 +3,7 @@
 Flask controller for parse fastq webapp.
 """
 
-import os, json, threading, sys
+import os, json, threading, sys, csv
 from flask import Flask, render_template, request, jsonify, url_for
 from werkzeug.utils import secure_filename
 import screen_analyzer
@@ -76,8 +76,18 @@ def analysis_load():
             result_file = request.files['result_file']
             result_file = upload_file(result_file, "result")
         result_file = os.path.join(UPLOAD_FOLDER, "output", result_file)
-        output = screen_analyzer.load_from_file(result_file)
+        output = load_from_file(result_file)
         return jsonify(result=output)
+
+def load_from_file(result_file):
+    print(result_file)
+    with open(result_file, "r") as csv_file:
+        reader = csv.reader(csv_file)
+        next(reader)
+        unsorted_list = list(reader)
+    print(unsorted_list)
+    #unsorted_list.sort(key=lambda x: float(x[7]), reverse=True)
+    return unsorted_list
 
 @app.route('/analysis/status', methods=['POST'])
 def analysis_status():
