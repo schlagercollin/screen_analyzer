@@ -3,10 +3,10 @@
 Flask controller for parse fastq webapp.
 """
 
-import os, json, threading, sys, csv
-from flask import Flask, render_template, request, jsonify, url_for
+import os, json, threading, sys, csv, shutil
+from flask import Flask, render_template, request, jsonify, url_for, send_from_directory
 from werkzeug.utils import secure_filename
-import screen_analyzer
+import screen_analysis_BP
 import library_embellish
 import time
 
@@ -52,18 +52,26 @@ def analysis_submit():
     """on analysis click: fetches stashed files or uploads and uses the new one
     returns json object for display (see index.html)"""
     if request.method == 'POST':
-        fastq = request.values['fastq']
-        if fastq == "Upload your own":
-            fastq = request.files['fastq']
-            fastq = upload_file(fastq, "fastq")
-        library = request.values['library']
-        print("Request: ", request.files)
-        output_file_name = request.values['file_name']
-        if 'library' in request.files and request.files['library'].filename != '':
-            library = request.files['library']
-            print("File: ",library)
-            library = upload_file(library, "library")
-        output = analyze_data(fastq, library, output_file_name)
+        sorted_fastq = request.values['sorted']
+        #print(sorted_fastq)
+        if sorted_fastq == "Upload your own":
+            sorted_fastq = request.files['sorted']
+            sorted_fastq = upload_file(sorted_fastq, "fastq")
+        unsorted_fastq = request.values['unsorted']
+        #print(unsorted_fastq)
+        if unsorted_fastq == "Upload your own":
+            unsorted_fastq = request.files['unsorted']
+            unsorted_fastq = upload_file(unsorted_fastq, "fastq")
+        guides = request.values['guides']
+        #print(guides)
+        output_file_name = request.values['output']
+        #print(output_file_name)
+        if 'guides' in request.files and request.files['guides'].filename != '':
+            guides = request.files['guides']
+            print("File: ",guides)
+            guides = upload_file(guides, "library")
+        print("Done!")
+        output = analyze_data(sorted_fastq, unsorted_fastq, output_file_name, guides)
         return jsonify(result=output)
 
 @app.route('/analysis/load', methods=['POST'])
@@ -75,29 +83,48 @@ def analysis_load():
         if result_file == "Upload your own":
             result_file = request.files['result_file']
             result_file = upload_file(result_file, "result")
-        result_file = os.path.join(UPLOAD_FOLDER, "output", result_file)
-        output = load_from_file(result_file)
-        return jsonify(result=output)
+        result_file_prefix = os.path.join(UPLOAD_FOLDER, "output", result_file, result_file)
+        gene_enrichment, sorted_stats, unsorted_stats = load_from_dir(result_file_prefix)
+        return jsonify(result=gene_enrichment, sorted_stats=sorted_stats, unsorted_stats=unsorted_stats)
 
-def load_from_file(result_file):
-    print(result_file)
-    with open(result_file, "r") as csv_file:
+@app.route('/downloads/<path:dir_name>', methods=['GET', 'POST'])
+def download(dir_name):
+    dir_name_path = os.path.join(UPLOAD_FOLDER, "output", dir_name)
+    #print("Making Archive...")
+    #shutil.make_archive(dir_name_path, 'zip', dir_name_path)
+    #print("Done.")
+    file_name = dir_name+".zip"
+    directory_path = os.path.join(UPLOAD_FOLDER, "output")
+    print(directory_path, file_name)
+    shutil.make_archive(dir_name_path, 'zip', dir_name_path)
+    return send_from_directory(directory=directory_path, filename=file_name)
+
+def load_from_dir(result_file_prefix):
+    # function to load relevant portions from a directory
+    sorted_stats_file = result_file_prefix + "_sorted_statistics.csv"
+    unsorted_stats_file = result_file_prefix + "_unsorted_statistics.csv"
+    gene_enrichment_file = result_file_prefix + "_gene_enrichment_calculation.csv"
+    gene_enrichment = load_csv_as_list(gene_enrichment_file, skip_header=True)
+    sorted_stats = load_csv_as_list(sorted_stats_file, skip_header=False)
+    unsorted_stats = load_csv_as_list(unsorted_stats_file, skip_header=False)
+    return gene_enrichment, sorted_stats, unsorted_stats
+
+def load_csv_as_list(file_name, skip_header=False):
+    with open(file_name, "r") as csv_file:
         reader = csv.reader(csv_file)
-        next(reader)
-        unsorted_list = list(reader)
-    #print(unsorted_list)
-    #unsorted_list.sort(key=lambda x: float(x[7]), reverse=True)
-    return unsorted_list
+        if skip_header == True:
+            next(reader)
+        return list(reader)
 
 @app.route('/analysis/status', methods=['POST'])
 def analysis_status():
     if request.method == 'POST':
         result = None
-        output = check_status()
-        print(output)
-        if output == "Complete":
-            result = get_result()
-        return jsonify(myStatus=output, result=result)
+        count_status, status = check_status()
+        if status == "Analysis Complete":
+            #result = get_result()
+            print("Analysis Confirmed Complete!")
+        return jsonify(count_status=count_status, status=status, result=result)
 
 @app.route('/analysis/status', methods=['POST'])
 def analysis_get_result():
@@ -108,23 +135,29 @@ def analysis_get_result():
 global myThread
 myThread = None
 
-def analyze_data(fastq, library, file_name):
+def analyze_data(sorted, unsorted, output, guides):
     global myThread
     """wrapper for parse_qfast function. handles some path information"""
-    print(UPLOAD_FOLDER, fastq, library)
-    matched_file = os.path.join(UPLOAD_FOLDER, "output", file_name+"_matched.csv")
-    unmatched_file = os.path.join(UPLOAD_FOLDER, "output", file_name+"_unmatched.csv")
-    stats_file = os.path.join(UPLOAD_FOLDER, "output", file_name+".json")
-    library = os.path.join(UPLOAD_FOLDER, 'library', library)
-    fastq = os.path.join(UPLOAD_FOLDER,'fastq', fastq)
-    myThread = screen_analyzer.parseThread(fastq, library, matched_file, unmatched_file, stats_file)
+    print(UPLOAD_FOLDER, sorted, unsorted, output, guides)
+    #matched_file = os.path.join(UPLOAD_FOLDER, "output", file_name+"_matched.csv")
+    #unmatched_file = os.path.join(UPLOAD_FOLDER, "output", file_name+"_unmatched.csv")
+    #stats_file = os.path.join(UPLOAD_FOLDER, "output", file_name+".json")
+    os.mkdir(os.path.join(UPLOAD_FOLDER, 'output', output)) # makes a directory
+    output = os.path.join(UPLOAD_FOLDER, 'output', output, output)
+    guides = os.path.join(UPLOAD_FOLDER, 'library', guides)
+    sorted = os.path.join(UPLOAD_FOLDER,'fastq', sorted)
+    unsorted = os.path.join(UPLOAD_FOLDER,'fastq', unsorted)
+    print("About to start the thread...")
+    myThread = screen_analysis_BP.parseThread(sorted, unsorted, output, guides)
     myThread.start()
     return True
 
 def check_status():
+    # Get count status and status of analysis thread
     global myThread
-    myStatus = myThread.status()
-    return myThread.status()
+    count_status = myThread.count_status
+    status = myThread.status
+    return count_status, status
 
 def get_result():
     global myThread

@@ -29,6 +29,7 @@ $( document ).ready( function() {
             type: 'POST',
             data: formData,
             success: function(data) {
+                console.log("Success. Checking status.");
                 check_status();
                 //displayResult(data.result); //display the data
             },
@@ -47,11 +48,19 @@ $( document ).ready( function() {
             data: formData,
             success: function(data) {
                 $("button#load_result").text("Load");
+                displayStats(data.sorted_stats, data.unsorted_stats)
                 displayResult(data.result); //display the data
             },
             processData: false,
             contentType: false
         });
+    });
+
+    $("#download_result").click(function(){
+        var dir_name = $("#result_file_select").val();
+        console.log(dir_name);
+        $("#download_result").val("Preparing .zip ...");
+        $(location).attr('href', '/downloads/'+dir_name)
     });
 
     function check_status(){
@@ -61,14 +70,15 @@ $( document ).ready( function() {
                 url: "/analysis/status",
                 type: 'POST',
                 success: function(data) {
-                    $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" />'+data.myStatus+' genes scanned.'); //display progress
-                    console.log(data.myStatus);
-                    if (data.myStatus != "Complete") {
+                    $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" />'+data.status+"; "+data.count_status+' genes scanned.'); //display progress
+                    console.log(data.status);
+                    if (data.status != "Analysis Complete") {
                         check_status()
                     } else {
                         $("button#analyze").text("Analyze");
 						$("span#analyze_status").text("");
-						displayResult(data.result);
+                        alert("Analysis complete!");
+                        //displayResult(data.result);
 
                     };
                 },
@@ -77,6 +87,13 @@ $( document ).ready( function() {
             });
         }, 100);
     };
+
+    function displayStats(sorted_stats, unsorted_stats) {
+        // Assumes stat types from both are equivalent
+        for (var stat in sorted_stats) {
+            $("#stats_table").append("<tr><td>"+sorted_stats[stat][0]+"</td><td>"+sorted_stats[stat][1]+"</td><td>"+unsorted_stats[stat][1]+"</td></tr>");
+        }
+    }
 
     function displayResult(raw_result) {
         //takes json data from controller and parses it to display the screen data
@@ -148,15 +165,15 @@ $( document ).ready( function() {
         }
         var data = [ trace1 ];
         var layout = {
-            title: "Gene Screen Results (Frequency vs Gene Target)",
+            title: "Gene Screen Results (Significance vs Log2(Fold Change))",
             xaxis: {
                 autorange: true,
-                title: "Gene Target"
+                title: "log2(FoldChange)"
             },
             yaxis: {
                 //type: 'log',
                 autorange: true,
-                title: "Frequency"
+                title: "-log(P-value)"
             },
             hovermode:'closest'
         }
@@ -224,8 +241,8 @@ $( document ).ready( function() {
     <form id="data_submit" method="post" enctype="multipart/form-data">
     <div>
         <div>
-            Fastq File:
-            <select name="fastq" id="qFast_file_select" class="file_select">
+            Sorted File:
+            <select name="sorted" id="qFast_file_select" class="file_select">
                 {% for item in data_files['fastq'] %}
                     <option>
                         {{ item.capitalize() }}
@@ -235,11 +252,25 @@ $( document ).ready( function() {
                         Upload your own
                     </option>
             </select>
-            <input name="fastq" id="qFast_file_upload" style="display: none;" class="file_upload" type="file"/>
+            <input name="sorted" id="qFast_file_upload" style="display: none;" class="file_upload" type="file"/>
         </div>
         <div>
-        Library File:
-            <select name="library" id="library_file_select" class="file_select">
+            Unsorted File:
+            <select name="unsorted" id="qFast_file_select" class="file_select">
+                {% for item in data_files['fastq'] %}
+                    <option>
+                        {{ item.capitalize() }}
+                    </option>
+                {% endfor %}
+                    <option>
+                        Upload your own
+                    </option>
+            </select>
+            <input name="unsorted" id="qFast_file_upload" style="display: none;" class="file_upload" type="file"/>
+        </div>
+        <div>
+        Guides File:
+            <select name="guides" id="library_file_select" class="file_select">
                 {% for item in data_files['library'] %}
                     <option>
                         {{ item.capitalize() }}
@@ -249,11 +280,11 @@ $( document ).ready( function() {
                         Upload your own
                     </option>
             </select>
-            <input name="library" id="library_file_upload" style="display: none;" class="file_upload" type="file" />
+            <input name="guides" id="library_file_upload" style="display: none;" class="file_upload" type="file" />
         </div>
         <div>
-            File name:
-                <input name="file_name" id="file_name_input" class="file_upload" />
+            Output File Name:
+                <input name="output" id="file_name_input" class="file_upload" />
         </div>
 
     </div>
@@ -278,11 +309,13 @@ $( document ).ready( function() {
     </div>
     <button type="submit" id="load_result" class="btn btn-info">Load</button>
     </form>
+    <button id="download_result" class="btn btn-info">Download</button>
     <div id="plotDiv"></div>
     <div class="result_wrapper" style="display: none;">
         <div class="stats">
             <table id="stats_table">
-                <th colspan="2">Screen Stats:</th>
+                <th colspan="4">Screen Stats:</th>
+                <tr><td>Statistic</td><td>Sorted</td><td>Unsorted</td></tr>
             </table>
         </div>
         <br>
