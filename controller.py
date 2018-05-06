@@ -9,6 +9,9 @@ from werkzeug.utils import secure_filename
 import screen_analysis_BP
 import library_embellish
 import time
+import logging
+logging.basicConfig()
+logging.getLogger().setLevel(logging.DEBUG)
 
 curdir = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(curdir, 'tmp/data')
@@ -80,12 +83,17 @@ def analysis_load():
     returns json object for display (see index.html)"""
     if request.method == 'POST':
         result_file = request.values['result_file']
+        if 'dataType' in request.values:
+            dataType = "mageck"
+        else:
+            dataType= "our_result"
+            print("Yep")
         if result_file == "Upload your own":
             result_file = request.files['result_file']
             result_file = upload_file(result_file, "result")
         result_file_prefix = os.path.join(UPLOAD_FOLDER, "output", result_file, result_file)
-        gene_enrichment, sorted_stats, unsorted_stats = load_from_dir(result_file_prefix)
-        return jsonify(result=gene_enrichment, sorted_stats=sorted_stats, unsorted_stats=unsorted_stats)
+        gene_enrichment, sorted_stats, unsorted_stats, mageck_results = load_from_dir(result_file_prefix)
+        return jsonify(result=gene_enrichment, sorted_stats=sorted_stats, unsorted_stats=unsorted_stats, mageck_results=mageck_results, dataType=dataType)
 
 @app.route('/downloads/<path:dir_name>', methods=['GET', 'POST'])
 def download(dir_name):
@@ -104,14 +112,16 @@ def load_from_dir(result_file_prefix):
     sorted_stats_file = result_file_prefix + "_sorted_statistics.csv"
     unsorted_stats_file = result_file_prefix + "_unsorted_statistics.csv"
     gene_enrichment_file = result_file_prefix + "_gene_enrichment_calculation.csv"
+    mageck_file = result_file_prefix + "_mageck.sgrna_summary.txt"
     gene_enrichment = load_csv_as_list(gene_enrichment_file, skip_header=True)
     sorted_stats = load_csv_as_list(sorted_stats_file, skip_header=False)
     unsorted_stats = load_csv_as_list(unsorted_stats_file, skip_header=False)
-    return gene_enrichment, sorted_stats, unsorted_stats
+    mageck_results = load_csv_as_list(mageck_file, skip_header=True, delimiter="\t")
+    return gene_enrichment, sorted_stats, unsorted_stats, mageck_results
 
-def load_csv_as_list(file_name, skip_header=False):
+def load_csv_as_list(file_name, skip_header=False, delimiter=','):
     with open(file_name, "r") as csv_file:
-        reader = csv.reader(csv_file)
+        reader = csv.reader(csv_file, delimiter=delimiter)
         if skip_header == True:
             next(reader)
         return list(reader)
@@ -122,7 +132,7 @@ def analysis_status():
         result = None
         count_status, status = check_status()
         if status == "Analysis Complete":
-            #result = get_result()
+            result = get_result()
             print("Analysis Confirmed Complete!")
         return jsonify(count_status=count_status, status=status, result=result)
 
@@ -135,7 +145,7 @@ def analysis_get_result():
 global myThread
 myThread = None
 
-def analyze_data(sorted, unsorted, output, guides):
+def analyze_data(sorted, unsorted, output, guides, control="Brie_Kinome_controls.txt"):
     global myThread
     """wrapper for parse_qfast function. handles some path information"""
     print(UPLOAD_FOLDER, sorted, unsorted, output, guides)
@@ -147,8 +157,9 @@ def analyze_data(sorted, unsorted, output, guides):
     guides = os.path.join(UPLOAD_FOLDER, 'library', guides)
     sorted = os.path.join(UPLOAD_FOLDER,'fastq', sorted)
     unsorted = os.path.join(UPLOAD_FOLDER,'fastq', unsorted)
+    control = os.path.join(UPLOAD_FOLDER, control)
     print("About to start the thread...")
-    myThread = screen_analysis_BP.parseThread(sorted, unsorted, output, guides)
+    myThread = screen_analysis_BP.parseThread(sorted, unsorted, output, guides, control)
     myThread.start()
     return True
 
@@ -161,7 +172,7 @@ def check_status():
 
 def get_result():
     global myThread
-    myResult = myThread.myResult
+    myResult = myThread.output
     return myResult
 
 @app.route('/compare')
