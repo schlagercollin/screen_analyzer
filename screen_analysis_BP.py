@@ -278,7 +278,12 @@ class parseThread(threading.Thread):
         print("Running command!")
         #command = command.split(" ")
         #print(command)
-        runcommand(command)
+        p = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        for line in p.stdout.readlines():
+            self.status = line
+            print(line)
+        p.wait()
+        #runcommand(command)
 
         print("DONE!")
         self.status = "Analysis Complete"
