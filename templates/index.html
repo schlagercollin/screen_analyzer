@@ -48,8 +48,13 @@ $( document ).ready( function() {
             data: formData,
             success: function(data) {
                 $("button#load_result").text("Load");
+                console.log(data.dataType);
+                if (data.dataType == "mageck"){
+                    displayMageck(data.mageck_results);
+                } else {
+                    displayResult(data.result);
+                }
                 displayStats(data.sorted_stats, data.unsorted_stats)
-                displayResult(data.result); //display the data
             },
             processData: false,
             contentType: false
@@ -59,7 +64,7 @@ $( document ).ready( function() {
     $("#download_result").click(function(){
         var dir_name = $("#result_file_select").val();
         console.log(dir_name);
-        $("#download_result").val("Preparing .zip ...");
+        $("#download_result").text("Preparing .zip ...");
         $(location).attr('href', '/downloads/'+dir_name)
     });
 
@@ -78,6 +83,24 @@ $( document ).ready( function() {
                         $("button#analyze").text("Analyze");
 						$("span#analyze_status").text("");
                         alert("Analysis complete!");
+                        var formData = new FormData();
+                        formData.append('result_file', data.result);
+                        $.ajax({
+                            url: "/analysis/load",
+                            type: 'POST',
+                            data: formData,
+                            success: function(data) {
+                                if (data.displayType == "mageck") {
+                                    displayMageck(data.mageck_results); //display the mageck results
+                                }
+                                else {
+                                    displayResult(data.result); //display the data
+                                }
+                                displayStats(data.sorted_stats, data.unsorted_stats)
+                            },
+                            processData: false,
+                            contentType: false
+                        });
                         //displayResult(data.result);
 
                     };
@@ -95,76 +118,162 @@ $( document ).ready( function() {
         }
     }
 
-    function displayResult(raw_result) {
+    function displayMageck(mageck_results) {
+        //console.log(mageck_results);
         //takes json data from controller and parses it to display the screen data
-        //console.log(raw_result);
-        //var library_dict = $.parseJSON(raw_result); //get library_dict (first dict in json list object)
-        var library_dict = raw_result;
-        //console.log(library_dict.length);
         $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" /> Crunching numbers...');
-        //var unmatched_dict = $.parseJSON(raw_result)[1];
-        //var stats = $.parseJSON(raw_result)[2]; //get stats (second dict in json list object
-        //for (var stat in stats) {
-        //    $("#stats_table").append("<tr><td>"+stat+"</td><td>"+stats[stat]+"</td></tr>");
-        //};
-        var x_vals = [];
-        var y_vals = [];
-        var text = [];
+        var log2foldchanges = [];
+        var p_values = [];
+        var genes = [];
         var colors = [];
-        //var x_vals = Object.keys(library_dict); //get x value data (gene)
         $("div.results").empty(); //clear old data stuff
+        Plotly.purge('plotDiv2');
+        Plotly.purge('plotDiv3');
+        $("div.plotDiv2").empty();
+        $("div.plotDiv3").empty();
         console.log("About to iterate.");
-        //var x_vals_length = x_vals.length;
         var counter = 0;
-        var x = 0;
-        var y = 0;
-        for (var gene in library_dict) {
-        //console.log(library_dict[gene][3]);
-            //console.log(library_dict[gene][0]);
+
+        // Extract data from file
+        for (var gene in mageck_results) {
             //Iterates through genes and displays information
             //HTML for each gene box
-            x = parseFloat(library_dict[gene][7]).toFixed(5);
-            y = (-1*Math.log2(parseFloat(library_dict[gene][1]))).toFixed(5);
+            geneName = mageck_results[gene][1]
+            log2foldchange = parseFloat(mageck_results[gene][6]).toFixed(5);
+            p_value = (-1*Math.log2(parseFloat(mageck_results[gene][13]))).toFixed(5);
             $("div.results").append(
-                //"<a data-toggle='collapse' data-target='."+gene+"'>" +
-                "<div class='flex-item geneResult restrained' name="+library_dict[gene][0]+"><p><b>"+library_dict[gene][0]+"</b></p>" +
-                "<p style='font-size:0.5em'>"+x+"</p>" +
-                "<p style='font-size:0.5em'>"+y+"</p>" +
-                "<p class='details invisible' style='font-size:0.5em'>"+library_dict[gene][9]+"</p>" +
-                "<p class='details invisible' style='font-size:0.3em'>"+library_dict[gene][8]+"</p>" +
+                "<div class='flex-item geneResult restrained' name="+geneName+"><p><b>"+geneName+"</b></p>" +
+                "<p style='font-size:0.5em'><span class='details invisible'>LFC: </span>"+log2foldchange+"</p>" +
+                "<p style='font-size:0.5em'><span class='details invisible'>FDR: </span>"+p_value+"</p>" +
                 "</div>"
-                //"</a>"
             );
-            //console.log(-1*Math.log2(parseFloat(library_dict[gene][1])));
-            //console.log(x,y);
-            x_vals.push(x); //add frequency for y value data
-            y_vals.push(y);
-            text.push(library_dict[gene][0]);
-            //colors.push('#'+Math.random().toString(16).substr(-6));
+
+            log2foldchanges.push(log2foldchange);
+            p_values.push(p_value);
+            //unsorted_frequencies.push(unsorted_freq);
+            //sorted_frequencies.push(sorted_freq);
+            genes.push(geneName);
             counter += 1;
             if (counter >= 1000){
+                // only parse first 1000 genes (speed optimization)
                 break;
             }
-            console.log("Iterating...");
-            //$("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" />'+'Crunching numbers... ( '+(counter/x_vals_length)*100+'% )');
-
         };
-        console.log("Done iterating.")
+        //unsorted_frequencies.sort(function(a, b){return b-a});
+        //sorted_frequencies.sort(function(a, b){return b-a});
         $("span#analyze_status").html("");
 
         //Plotly stuff
         var trace1 = {
-            x: x_vals,
-            y: y_vals,
-            text: text,
+            x: log2foldchanges,
+            y: p_values,
+            text: genes,
             mode: 'markers',
             marker: {
                 //color: colors,
                 line: {width: 1}
             }
         }
-        var data = [ trace1 ];
-        var layout = {
+        var data1 = [ trace1 ];
+        var layout1 = {
+            title: "Mageck Results",
+            xaxis: {
+                autorange: true,
+                title: "LFC"
+            },
+            yaxis: {
+                //type: 'log',
+                autorange: true,
+                title: "-log(FDR)"
+            },
+            hovermode:'closest'
+        }
+        $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
+        Plotly.newPlot('plotDiv1', data1, layout1); //create plot
+
+    };
+
+    function displayResult(raw_result, mageck_results) {
+        //takes json data from controller and parses it to display the screen data
+        var library_dict = raw_result;
+        $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" /> Crunching numbers...');
+        var log2foldchanges = [];
+        var p_values = [];
+        var unsorted_frequencies = [];
+        var sorted_frequencies = [];
+        var genes = [];
+        var colors = [];
+        $("div.results").empty(); //clear old data stuff
+        console.log("About to iterate.");
+        var counter = 0;
+        var x = 0;
+        var y = 0;
+
+        // Extract data from file
+        for (var gene in library_dict) {
+            console.log(library_dict[gene][3]);
+            //Iterates through genes and displays information
+            //HTML for each gene box
+            log2foldchange = parseFloat(library_dict[gene][7]).toFixed(5);
+            p_value = (-1*Math.log2(parseFloat(library_dict[gene][1]))).toFixed(5);
+            unsorted_freq = parseFloat(library_dict[gene][3]).toFixed(5);
+            sorted_freq = parseFloat(library_dict[gene][5]).toFixed(5);
+            $("div.results").append(
+                "<div class='flex-item geneResult restrained' name="+library_dict[gene][0]+"><p><b>"+library_dict[gene][0]+"</b></p>" +
+                "<p style='font-size:0.5em'>"+log2foldchange+"</p>" +
+                "<p style='font-size:0.5em'>"+p_value+"</p>" +
+                "<p class='details invisible' style='font-size:0.5em'>"+library_dict[gene][9]+"</p>" +
+                "<p class='details invisible' style='font-size:0.3em'>"+library_dict[gene][8]+"</p>" +
+                "</div>"
+            );
+
+            log2foldchanges.push(log2foldchange);
+            p_values.push(p_value);
+            unsorted_frequencies.push(unsorted_freq);
+            sorted_frequencies.push(sorted_freq);
+            genes.push(library_dict[gene][0]);
+            counter += 1;
+            if (counter >= 1000){
+                break;
+            }
+        };
+        unsorted_frequencies.sort(function(a, b){return b-a});
+        sorted_frequencies.sort(function(a, b){return b-a});
+        $("span#analyze_status").html("");
+
+        //Plotly stuff
+        var trace1 = {
+            x: log2foldchanges,
+            y: p_values,
+            text: genes,
+            mode: 'markers',
+            marker: {
+                //color: colors,
+                line: {width: 1}
+            }
+        }
+        var trace2 = {
+            x: genes,
+            y: unsorted_frequencies,
+            mode: 'markers',
+            marker: {
+                //color: colors,
+                line: {width: 1}
+            }
+        }
+        var trace3 = {
+            x: genes,
+            y: sorted_frequencies,
+            mode: 'markers',
+            marker: {
+                //color: colors,
+                line: {width: 1}
+            }
+        }
+        var data1 = [ trace1 ];
+        var data2 = [ trace2 ];
+        var data3 = [ trace3 ];
+        var layout1 = {
             title: "Gene Screen Results (Significance vs Log2(Fold Change))",
             xaxis: {
                 autorange: true,
@@ -177,10 +286,37 @@ $( document ).ready( function() {
             },
             hovermode:'closest'
         }
-
+        var layout2 = {
+            title: "Sorted Frequencies",
+            xaxis: {
+                autorange: true,
+                title: "Gene Target"
+            },
+            yaxis: {
+                //type: 'log',
+                autorange: true,
+                title: "Frequency"
+            },
+            hovermode:'closest'
+        }
+        var layout3 = {
+            title: "Unsorted Frequencies",
+            xaxis: {
+                autorange: true,
+                title: "Gene Target"
+            },
+            yaxis: {
+                //type: 'log',
+                autorange: true,
+                title: "Frequency"
+            },
+            hovermode:'closest'
+        }
         $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
+        Plotly.newPlot('plotDiv1', data1, layout1); //create plot
+        Plotly.newPlot('plotDiv2', data2, layout2); //create plot
+        Plotly.newPlot('plotDiv3', data3, layout3); //create plot
 
-        Plotly.newPlot('plotDiv', data, layout); //create plot
     };
 
     $("#search").on("keyup", function(){
@@ -308,9 +444,12 @@ $( document ).ready( function() {
         </div>
     </div>
     <button type="submit" id="load_result" class="btn btn-info">Load</button>
+    <input name="dataType" id="dataType" type="checkbox">
     </form>
     <button id="download_result" class="btn btn-info">Download</button>
-    <div id="plotDiv"></div>
+    <div id="plotDiv1"></div>
+    <div id="plotDiv2"></div>
+    <div id="plotDiv3"></div>
     <div class="result_wrapper" style="display: none;">
         <div class="stats">
             <table id="stats_table">
