@@ -210,11 +210,11 @@ def parse_qfast(qfast_file, library_file, frequency_output_file, unmatched_outpu
     stats['output_file'] = frequency_output_file
     stats['output_unmatched_file'] = unmatched_output_file
 
-    write_to_file(library_dict, frequency_output_file)
-    write_to_file(unmatched, unmatched_output_file)
+    #write_to_file(library_dict, frequency_output_file)
+    #write_to_file(unmatched, unmatched_output_file)
 
-    with open(stats_output_file, "w") as outfile:
-        json.dump([sorted_results, unmatched, stats], outfile)
+    #with open(stats_output_file, "w") as outfile:
+    #    json.dump([sorted_results, unmatched, stats], outfile)
 
     return library_dict, stats
 
@@ -285,7 +285,13 @@ def load_from_file(file_name, output="json"):
 
 
 if __name__ == "__main__":
-    dictionary, stats = parse_qfast("/Users/collinschlager/Documents/Rohatgi_Lab/screen_data/100mM-rep1-Unsorted_S1_L001_R1_001.fastq","/Users/collinschlager/Documents/Rohatgi_Lab/screen_data/Mouse_Kinome_list_Brie.csv","/Users/collinschlager/Documents/Rohatgi_Lab/screen_data/output_frequency.csv", "/Users/collinschlager/Documents/Rohatgi_Lab/screen_data/output_unmatched.csv", "/Users/collinschlager/Documents/Rohatgi_Lab/screen_data/output_stats.json")
-    #library_dict = "/Users/collinschlager/PycharmProjects/screen_analyzer/tmp/data/library/Mouse_Kinome_list_Brie.csv"
+    start = time.time()
+    qfast_file = "/Users/collinschlager/Documents/Rohatgi_Lab/screen_data/100mM-rep1-Unsorted_S1_L001_R1_001.fastq"
+    library_file = "/Users/collinschlager/Documents/Rohatgi_Lab/screen_analyzer/tmp/data/library/Brie_crispr_library_with_controls_for_analysis_updated.csv"
+    output_file = "output.csv"
+    dictionary, stats = parse_qfast(qfast_file,library_file,"/Users/collinschlager/Documents/Rohatgi_Lab/screen_data/output_frequency.csv", "/Users/collinschlager/Documents/Rohatgi_Lab/screen_data/output_unmatched.csv", "/Users/collinschlager/Documents/Rohatgi_Lab/screen_data/output_stats.json")
+    library_dict = "/Users/collinschlager/PycharmProjects/screen_analyzer/tmp/data/library/Mouse_Kinome_list_Brie.csv"
     #result = parse_qfast("/Users/collinschlager/PycharmProjects/screen_analyzer/tmp/data/fastq/100mM-rep1-Unsorted_S1_L001_R1_001.fastq", library_dict, "output.json")
-    #print(result)
+    end = time.time()
+    duration = end - start # duration in seconds
+    print("Done. Took %r seconds." % duration)
