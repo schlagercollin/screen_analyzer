@@ -85,11 +85,18 @@ def perform_analysis(sorted_fastq, unsorted_fastq, library_file, output_file):
     add_df_column(library_df, sorted_counts_dict, "Sorted Counts")
     unsorted_counts_dict = parse_qfast(unsorted_file, library_file)
     add_df_column(library_df, unsorted_counts_dict, "Unsorted Counts")
-    compute_lfc(library_df)
-    compute_fischer(library_df)
-    library_df.sort_values(by=["LFC"], ascending=False, inplace=True)
-    library_df.to_csv(output_file)
     return library_df
+
+def collapse_to_gene_level(dataframe):
+    print("Collapsing to Gene Level...")
+    aggregation_rule = {c : "sum" if (c == "Sorted Counts" or c == "Unsorted Counts") else "first" for c in dataframe.columns}
+    aggregation_rule.pop("Target Gene Symbol")
+    print(aggregation_rule)
+    gene_level_df = dataframe.groupby("Target Gene Symbol", as_index=False).agg(aggregation_rule)
+    gene_level_df.to_csv("gene_level_output.csv")
+    print("Done.")
+    return gene_level_df
+
 
 if __name__ == "__main__":
     start = time.time()
@@ -98,7 +105,19 @@ if __name__ == "__main__":
     library_file = "/Users/collinschlager/Documents/Rohatgi_Lab/screen_analyzer/tmp/data/library/Mouse_kinome_list_brie_updated.csv"
     output_file = "output.csv"
 
-    result = perform_analysis(sorted_file, unsorted_file, library_file, output_file)
+    guides_result = perform_analysis(sorted_file, unsorted_file, library_file, output_file)
+    genes_result = collapse_to_gene_level(guides_result)
+
+    compute_lfc(guides_result)
+    compute_lfc(genes_result)
+    compute_fischer(guides_result)
+    compute_fischer(genes_result)
+
+    guides_result.sort_values(by=["FDR-Corrected P-Values"], ascending=True, inplace=True)
+    guides_result.to_csv(output_file)
+    genes_result.sort_values(by=["FDR-Corrected P-Values"], ascending=True, inplace=True)
+    genes_result.to_csv("gene_level_"+output_file)
+
 
     print("All done!")
     end = time.time()
