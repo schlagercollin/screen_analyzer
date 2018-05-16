@@ -2,6 +2,8 @@ import sys
 import numpy as np
 import csv
 import pandas as pd
+import scipy.stats as stats
+import statsmodels.sandbox.stats.multicomp as compTool
 from collections import OrderedDict
 import time
 import math
@@ -34,9 +36,8 @@ def add_df_column(library_df, column_dict, column_name):
     library_df[column_name] = counts_list # set column equal to list
     print("Done.")
 
-
 def parse_qfast(qfast_file, library_file):
-    print("Paring %r" % qfast_file)
+    print("Parsing %r" % qfast_file)
     counts_dict = parse_lib(library_file)
     scan_counter = 0
     print("Iterating over file...")
@@ -51,6 +52,7 @@ def parse_qfast(qfast_file, library_file):
     return counts_dict
 
 def compute_lfc(dataframe):
+    print("Computing LFC...")
     log2 = lambda x: math.log2(x)
     sortedTotMatches = int(dataframe["Sorted Counts"].sum())
     unsortedTotMatches = int(dataframe["Unsorted Counts"].sum())
@@ -58,6 +60,22 @@ def compute_lfc(dataframe):
     normalized_unsorted = (dataframe["Unsorted Counts"]+1)/unsortedTotMatches
     foldchange = normalized_sorted/normalized_unsorted
     dataframe["LFC"] = foldchange.apply(log2)
+    print("Done.")
+    return dataframe
+
+def fischer_function(row, sortedTot = None, unsortedTot = None):
+    oddsratio, pValue = stats.fisher_exact([[row["Unsorted Counts"], unsortedTot], [row["Sorted Counts"], sortedTot]]);
+    return pValue
+
+def compute_fischer(dataframe):
+    print("Computing Fischer...")
+    sortedTotMatches = int(dataframe["Sorted Counts"].sum())
+    unsortedTotMatches = int(dataframe["Unsorted Counts"].sum())
+    dataframe["Fischer P-Values"] = dataframe.apply(fischer_function, axis=1, sortedTot=sortedTotMatches, unsortedTot=unsortedTotMatches)
+    adjEnrichPVals = compTool.multipletests(list(dataframe["Fischer P-Values"]), method='fdr_bh', is_sorted=False)[1]
+    assert (len(adjEnrichPVals) == len(dataframe))
+    dataframe["FDR-Corrected P-Values"] = adjEnrichPVals
+    print("Done.")
     return dataframe
 
 def perform_analysis(sorted_fastq, unsorted_fastq, library_file, output_file):
@@ -68,6 +86,7 @@ def perform_analysis(sorted_fastq, unsorted_fastq, library_file, output_file):
     unsorted_counts_dict = parse_qfast(unsorted_file, library_file)
     add_df_column(library_df, unsorted_counts_dict, "Unsorted Counts")
     compute_lfc(library_df)
+    compute_fischer(library_df)
     library_df.sort_values(by=["LFC"], ascending=False, inplace=True)
     library_df.to_csv(output_file)
     return library_df
