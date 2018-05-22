@@ -63,6 +63,7 @@ $( document ).ready( function() {
         console.log(dir_name);
         $("#download_result").text("Preparing .zip ...");
         $(location).attr('href', '/downloads/'+dir_name)
+        $("#download_result").text("Download");
     });
 
     function check_status(){
@@ -205,6 +206,10 @@ $( document ).ready( function() {
         var y_3 = dataframe.c("Unsorted Counts").toArray();
         var genes_2 = dataframe.c("Target Gene Symbol").toArray();
         var x_3 = dataframe.c("Target Gene Symbol").toArray();
+        y_2.shift() // Take out control
+        x_2.shift()
+        y_3.shift()
+        x_3.shift()
         /*
         console.log(data_frame.printToString());
         $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" /> Crunching numbers...');
@@ -228,15 +233,16 @@ $( document ).ready( function() {
         for (var gene in genes_object) {
             //Iterates through genes and displays information
             //HTML for each gene box
+            gene_symbol = genes_object[gene]["Target Gene Symbol"]
             log2foldchange = parseFloat(genes_object[gene]["LFC"]).toFixed(5);
             p_value = parseFloat(genes_object[gene]["Y Values"]).toFixed(5);
             unsorted_freq = parseFloat(genes_object[gene]["Unsorted Counts"]).toFixed(5);
             sorted_freq = parseFloat(genes_object[gene]["Sorted Counts"]).toFixed(5);
             summary = genes_object[gene]["Summary"]
             description = genes_object[gene]["Description"]
-            console.log(typeof(summary));
+            //console.log(typeof(summary));
             if (isNaN(summary)){
-                console.log("Replacing");
+                //console.log("Replacing");
                 summary = "";
             }
 
