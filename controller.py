@@ -6,12 +6,14 @@ Flask controller for parse fastq webapp.
 import os, json, threading, sys, csv, shutil
 from flask import Flask, render_template, request, jsonify, url_for, send_from_directory
 from werkzeug.utils import secure_filename
-import screen_analysis_BP
+#import screen_analysis_BP
+import supafast
 import library_embellish
 import time
 import logging
-logging.basicConfig()
-logging.getLogger().setLevel(logging.DEBUG)
+import pandas as pd
+#logging.basicConfig()
+#logging.getLogger().setLevel(logging.DEBUG)
 
 curdir = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(curdir, 'tmp/data')
@@ -55,25 +57,25 @@ def analysis_submit():
     """on analysis click: fetches stashed files or uploads and uses the new one
     returns json object for display (see index.html)"""
     if request.method == 'POST':
+
         sorted_fastq = request.values['sorted']
-        #print(sorted_fastq)
         if sorted_fastq == "Upload your own":
             sorted_fastq = request.files['sorted']
             sorted_fastq = upload_file(sorted_fastq, "fastq")
+
         unsorted_fastq = request.values['unsorted']
-        #print(unsorted_fastq)
         if unsorted_fastq == "Upload your own":
             unsorted_fastq = request.files['unsorted']
             unsorted_fastq = upload_file(unsorted_fastq, "fastq")
+
         guides = request.values['guides']
-        #print(guides)
-        output_file_name = request.values['output']
-        #print(output_file_name)
         if 'guides' in request.files and request.files['guides'].filename != '':
             guides = request.files['guides']
             print("File: ",guides)
             guides = upload_file(guides, "library")
-        print("Done!")
+
+        output_file_name = request.values['output']
+
         output = analyze_data(sorted_fastq, unsorted_fastq, output_file_name, guides)
         return jsonify(result=output)
 
@@ -83,17 +85,15 @@ def analysis_load():
     returns json object for display (see index.html)"""
     if request.method == 'POST':
         result_file = request.values['result_file']
-        if 'dataType' in request.values:
-            dataType = "mageck"
-        else:
-            dataType= "our_result"
-            print("Yep")
+        print(result_file)
         if result_file == "Upload your own":
             result_file = request.files['result_file']
             result_file = upload_file(result_file, "result")
+
         result_file_prefix = os.path.join(UPLOAD_FOLDER, "output", result_file, result_file)
-        gene_enrichment, sorted_stats, unsorted_stats, mageck_results = load_from_dir(result_file_prefix)
-        return jsonify(result=gene_enrichment, sorted_stats=sorted_stats, unsorted_stats=unsorted_stats, mageck_results=mageck_results, dataType=dataType)
+        gene_enrichment, guide_enrichment = load_from_dir(result_file_prefix)
+        print("made it here")
+        return gene_enrichment
 
 @app.route('/downloads/<path:dir_name>', methods=['GET', 'POST'])
 def download(dir_name):
@@ -109,15 +109,21 @@ def download(dir_name):
 
 def load_from_dir(result_file_prefix):
     # function to load relevant portions from a directory
-    sorted_stats_file = result_file_prefix + "_sorted_statistics.csv"
-    unsorted_stats_file = result_file_prefix + "_unsorted_statistics.csv"
+    #sorted_stats_file = result_file_prefix + "_sorted_statistics.csv"
+    #unsorted_stats_file = result_file_prefix + "_unsorted_statistics.csv"
     gene_enrichment_file = result_file_prefix + "_gene_enrichment_calculation.csv"
-    mageck_file = result_file_prefix + "_mageck.sgrna_summary.txt"
-    gene_enrichment = load_csv_as_list(gene_enrichment_file, skip_header=True)
-    sorted_stats = load_csv_as_list(sorted_stats_file, skip_header=False)
-    unsorted_stats = load_csv_as_list(unsorted_stats_file, skip_header=False)
-    mageck_results = load_csv_as_list(mageck_file, skip_header=True, delimiter="\t")
-    return gene_enrichment, sorted_stats, unsorted_stats, mageck_results
+    guide_enrichment_file = result_file_prefix + "_guide_enrichment_calculation.csv"
+    gene_enrichment_df = pd.read_csv(gene_enrichment_file)
+    guide_enrichment_df = pd.read_csv(guide_enrichment_file)
+    gene_enrichment = str(list(gene_enrichment_df.T.to_dict().values()))
+    guide_enrichment = str(list(guide_enrichment_df.T.to_dict().values()))
+    return gene_enrichment, guide_enrichment
+    #mageck_file = result_file_prefix + "_mageck.sgrna_summary.txt"
+    #gene_enrichment = load_csv_as_list(gene_enrichment_file, skip_header=True)
+    #sorted_stats = load_csv_as_list(sorted_stats_file, skip_header=False)
+    #unsorted_stats = load_csv_as_list(unsorted_stats_file, skip_header=False)
+    #mageck_results = load_csv_as_list(mageck_file, skip_header=True, delimiter="\t")
+    #return gene_enrichment, sorted_stats, unsorted_stats, mageck_results
 
 def load_csv_as_list(file_name, skip_header=False, delimiter=','):
     with open(file_name, "r") as csv_file:
@@ -132,9 +138,8 @@ def analysis_status():
         result = None
         count_status, status = check_status()
         if status == "Analysis Complete":
-            result = get_result()
             print("Analysis Confirmed Complete!")
-        return jsonify(count_status=count_status, status=status, result=result)
+        return jsonify(count_status=count_status, status=status)
 
 @app.route('/analysis/status', methods=['POST'])
 def analysis_get_result():
@@ -149,18 +154,19 @@ def analyze_data(sorted, unsorted, output, guides, control="Brie_Kinome_controls
     global myThread
     """wrapper for parse_qfast function. handles some path information"""
     print(UPLOAD_FOLDER, sorted, unsorted, output, guides)
-    #matched_file = os.path.join(UPLOAD_FOLDER, "output", file_name+"_matched.csv")
-    #unmatched_file = os.path.join(UPLOAD_FOLDER, "output", file_name+"_unmatched.csv")
-    #stats_file = os.path.join(UPLOAD_FOLDER, "output", file_name+".json")
-    os.mkdir(os.path.join(UPLOAD_FOLDER, 'output', output)) # makes a directory
-    output = os.path.join(UPLOAD_FOLDER, 'output', output, output)
-    guides = os.path.join(UPLOAD_FOLDER, 'library', guides)
+
+    os.mkdir(os.path.join(UPLOAD_FOLDER, 'output', output)) # Make output directory
+    output = os.path.join(UPLOAD_FOLDER, 'output', output, output) # Set output path to new dir
+
+    guides = os.path.join(UPLOAD_FOLDER, 'library', guides) # Get input file paths
     sorted = os.path.join(UPLOAD_FOLDER,'fastq', sorted)
     unsorted = os.path.join(UPLOAD_FOLDER,'fastq', unsorted)
     control = os.path.join(UPLOAD_FOLDER, control)
     print("About to start the thread...")
-    myThread = screen_analysis_BP.parseThread(sorted, unsorted, output, guides, control)
+
+    myThread = supafast.parseThread(sorted, unsorted, output, guides, control_file=None)
     myThread.start()
+
     return True
 
 def check_status():

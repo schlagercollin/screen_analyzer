@@ -1,12 +1,14 @@
 import sys
 import numpy as np
 import csv
+import os
 import pandas as pd
 import scipy.stats as stats
 import statsmodels.sandbox.stats.multicomp as compTool
 from collections import OrderedDict
 import time
 import math
+import threading
 
 #idfile = sys.argv[1]
 
@@ -78,12 +80,12 @@ def compute_fischer(dataframe):
     print("Done.")
     return dataframe
 
-def perform_analysis(sorted_fastq, unsorted_fastq, library_file, output_file):
+def perform_analysis(sorted_fastq, unsorted_fastq, library_file):
     print("Beginning parsing...")
     library_df = create_dataframe(library_file)
-    sorted_counts_dict = parse_qfast(sorted_file, library_file)
+    sorted_counts_dict = parse_qfast(sorted_fastq, library_file)
     add_df_column(library_df, sorted_counts_dict, "Sorted Counts")
-    unsorted_counts_dict = parse_qfast(unsorted_file, library_file)
+    unsorted_counts_dict = parse_qfast(unsorted_fastq, library_file)
     add_df_column(library_df, unsorted_counts_dict, "Unsorted Counts")
     return library_df
 
@@ -97,8 +99,52 @@ def collapse_to_gene_level(dataframe):
     print("Done.")
     return gene_level_df
 
+class parseThread(threading.Thread):
+    def __init__(self, sorted_file, unsorted_file, output_dir, guides_file, control_file=None):
+        self.sorted_file = sorted_file
+        self.unsorted_file = unsorted_file
+        self.output_dir = output_dir
+        self.guides_file = guides_file
+        self.control_file = control_file
+        self.count_status = 0
+        self.output = 0
+        self.status = "Thread Initialized"
+        print("Initializing thread information...")
+        print(self.output_dir)
+        super().__init__()
 
-if __name__ == "__main__":
+    def run(self):
+        self.status = "Parsing sorted file..."
+        guides_result = perform_analysis(self.sorted_file, self.unsorted_file, self.guides_file)
+        self.status = "Collapsing to Gene Level..."
+        genes_result = collapse_to_gene_level(guides_result)
+
+        self.status = "Computing LFC..."
+        compute_lfc(guides_result)
+        compute_lfc(genes_result)
+
+        self.status = "Computing fischer for guides..."
+        compute_fischer(guides_result)
+        self.status = "Computing fischer for genes..."
+        compute_fischer(genes_result)
+
+        # guides_result.sort_values(by=["FDR-Corrected P-Values"], ascending=True, inplace=True)
+        guides_result.sort_values(by=["LFC"], ascending=False, inplace=True)
+        guide_path = self.output_dir+"_guide_enrichment_calculation.csv"
+        print(guide_path)
+        guides_result.to_csv(guide_path)
+
+        genes_result.sort_values(by=["LFC"], ascending=False, inplace=True)
+        genes_path = self.output_dir+"_gene_enrichment_calculation.csv"
+        print(genes_path)
+        genes_result.to_csv(genes_path)
+
+
+        self.status = "Analysis Complete"
+        self.output = guides_result, genes_result
+        return guides_result, genes_result
+
+def main():
     start = time.time()
     sorted_file = "/Users/collinschlager/Documents/Rohatgi_Lab/screen_analyzer/tmp/data/fastq/100mM-rep1-Bot5_S2_L001_R1_001.fastq"
     unsorted_file = "/Users/collinschlager/Documents/Rohatgi_Lab/screen_analyzer/tmp/data/fastq/100mM-rep1-Unsorted_S1_L001_R1_001.fastq"
@@ -123,3 +169,7 @@ if __name__ == "__main__":
     end = time.time()
     duration = (end - start) # duration is second
     print("Took %r seconds." % duration)
+    return guides_result, genes_result, duration
+
+if __name__ == "__main__":
+    guides, genes, time_elapsed = main()
