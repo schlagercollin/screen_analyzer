@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <script type="text/javascript">
+var dataframe = "Placeholder";
 $( document ).ready( function() {
     $("select.file_select").change(function(){
         var file_upload_field = $(this).siblings("input.file_upload");
@@ -48,13 +49,9 @@ $( document ).ready( function() {
             data: formData,
             success: function(data) {
                 $("button#load_result").text("Load");
-                console.log(data.dataType);
-                if (data.dataType == "mageck"){
-                    displayMageck(data.mageck_results);
-                } else {
-                    displayResult(data.result);
-                }
-                displayStats(data.sorted_stats, data.unsorted_stats)
+                console.log("HERE");
+                displayResult(data);
+                //displayStats(data.sorted_stats, data.unsorted_stats)
             },
             processData: false,
             contentType: false
@@ -75,7 +72,7 @@ $( document ).ready( function() {
                 url: "/analysis/status",
                 type: 'POST',
                 success: function(data) {
-                    $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" />'+data.status+"; "+data.count_status+' genes scanned.'); //display progress
+                    $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" />'+data.status); //display progress
                     console.log(data.status);
                     if (data.status != "Analysis Complete") {
                         check_status()
@@ -90,25 +87,19 @@ $( document ).ready( function() {
                             type: 'POST',
                             data: formData,
                             success: function(data) {
-                                if (data.displayType == "mageck") {
-                                    displayMageck(data.mageck_results); //display the mageck results
-                                }
-                                else {
-                                    displayResult(data.result); //display the data
-                                }
-                                displayStats(data.sorted_stats, data.unsorted_stats)
+                                console.log(data);
+                                displayResult(data); //display the data
+                                //displayStats(data.sorted_stats, data.unsorted_stats)
                             },
                             processData: false,
                             contentType: false
                         });
-                        //displayResult(data.result);
-
                     };
                 },
                 processData: false,
                 contentType: false,
             });
-        }, 100);
+        }, 300);
     };
 
     function displayStats(sorted_stats, unsorted_stats) {
@@ -193,9 +184,29 @@ $( document ).ready( function() {
 
     };
 
-    function displayResult(raw_result, mageck_results) {
+    function displayResult(result) {
+        //console.log("HERE");
+        //console.log(result);
+        var nan = NaN;
         //takes json data from controller and parses it to display the screen data
-        var library_dict = raw_result;
+        var gene_enrichment = eval(result);
+        dataframe = jd.dfFromObjArray(gene_enrichment);
+        dataframe = dataframe.sort("Y Values", ascending=true);
+        var x_1 = dataframe.c("LFC").toArray();
+        var genes_1 = dataframe.c("Target Gene Symbol").toArray();
+        var y_1 = dataframe.c("Y Values").toArray();
+
+        dataframe = dataframe.sort("Sorted Counts", ascending=false);
+        var y_2 = dataframe.c("Sorted Counts").toArray();
+        var genes_2 = dataframe.c("Target Gene Symbol").toArray();
+        var x_2 = dataframe.c("Target Gene Symbol").toArray();
+
+        dataframe = dataframe.sort("Unsorted Counts", ascending=false);
+        var y_3 = dataframe.c("Unsorted Counts").toArray();
+        var genes_2 = dataframe.c("Target Gene Symbol").toArray();
+        var x_3 = dataframe.c("Target Gene Symbol").toArray();
+        /*
+        console.log(data_frame.printToString());
         $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" /> Crunching numbers...');
         var log2foldchanges = [];
         var p_values = [];
@@ -208,44 +219,45 @@ $( document ).ready( function() {
         var counter = 0;
         var x = 0;
         var y = 0;
+        */
 
         // Extract data from file
-        for (var gene in library_dict) {
-            console.log(library_dict[gene][3]);
+        dataframe = dataframe.sort("Y Values", ascending=false);
+        genes_object = dataframe.toObjArray()
+        var counter = 0;
+        for (var gene in genes_object) {
             //Iterates through genes and displays information
             //HTML for each gene box
-            log2foldchange = parseFloat(library_dict[gene][7]).toFixed(5);
-            p_value = (-1*Math.log2(parseFloat(library_dict[gene][1]))).toFixed(5);
-            unsorted_freq = parseFloat(library_dict[gene][3]).toFixed(5);
-            sorted_freq = parseFloat(library_dict[gene][5]).toFixed(5);
+            log2foldchange = parseFloat(genes_object[gene]["LFC"]).toFixed(5);
+            p_value = parseFloat(genes_object[gene]["Y Values"]).toFixed(5);
+            unsorted_freq = parseFloat(genes_object[gene]["Unsorted Counts"]).toFixed(5);
+            sorted_freq = parseFloat(genes_object[gene]["Sorted Counts"]).toFixed(5);
+            summary = genes_object[gene]["Summary"]
+            description = genes_object[gene]["Description"]
+            console.log(typeof(summary));
+            if (isNaN(summary)){
+                console.log("Replacing");
+                summary = "";
+            }
+
             $("div.results").append(
-                "<div class='flex-item geneResult restrained' name="+library_dict[gene][0]+"><p><b>"+library_dict[gene][0]+"</b></p>" +
+                "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+"><p><b>"+genes_object[gene]["Target Gene Symbol"]+"</b></p>" +
                 "<p style='font-size:0.5em'>"+log2foldchange+"</p>" +
                 "<p style='font-size:0.5em'>"+p_value+"</p>" +
-                "<p class='details invisible' style='font-size:0.5em'>"+library_dict[gene][9]+"</p>" +
-                "<p class='details invisible' style='font-size:0.3em'>"+library_dict[gene][8]+"</p>" +
+                "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
+                "<p class='details invisible' style='font-size:0.3em'>"+summary+"</p>" +
                 "</div>"
             );
-
-            log2foldchanges.push(log2foldchange);
-            p_values.push(p_value);
-            unsorted_frequencies.push(unsorted_freq);
-            sorted_frequencies.push(sorted_freq);
-            genes.push(library_dict[gene][0]);
             counter += 1;
             if (counter >= 1000){
                 break;
             }
         };
-        unsorted_frequencies.sort(function(a, b){return b-a});
-        sorted_frequencies.sort(function(a, b){return b-a});
-        $("span#analyze_status").html("");
-
         //Plotly stuff
         var trace1 = {
-            x: log2foldchanges,
-            y: p_values,
-            text: genes,
+            x: x_1,
+            y: y_1,
+            text: genes_1,
             mode: 'markers',
             marker: {
                 //color: colors,
@@ -253,8 +265,8 @@ $( document ).ready( function() {
             }
         }
         var trace2 = {
-            x: genes,
-            y: unsorted_frequencies,
+            x: x_2,
+            y: y_2,
             mode: 'markers',
             marker: {
                 //color: colors,
@@ -262,8 +274,8 @@ $( document ).ready( function() {
             }
         }
         var trace3 = {
-            x: genes,
-            y: sorted_frequencies,
+            x: x_3,
+            y: y_3,
             mode: 'markers',
             marker: {
                 //color: colors,
@@ -293,7 +305,7 @@ $( document ).ready( function() {
                 title: "Gene Target"
             },
             yaxis: {
-                //type: 'log',
+                type: 'log',
                 autorange: true,
                 title: "Frequency"
             },
@@ -306,7 +318,7 @@ $( document ).ready( function() {
                 title: "Gene Target"
             },
             yaxis: {
-                //type: 'log',
+                type: 'log',
                 autorange: true,
                 title: "Frequency"
             },

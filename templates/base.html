@@ -31,6 +31,15 @@
     <!-- Plotly.js -->
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
+    <!-- JS Dataframe -->
+    <!--<script src="https://cdn.rawgit.com/Gmousse/dataframe-js/master/dist/dataframe-min.js">
+        var DataFrame = dfjs.DataFrame;
+    </script>-->
+    <script type="text/javascript" src="{{ url_for('static', filename='jsdataframe-min.js') }}"></script>
+    <script type="text/javascript">
+        var jd = jsdataframe;
+    </script>
+
 </head>
 
 <body>
