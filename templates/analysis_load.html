@@ -9,7 +9,6 @@ $( document ).ready( function() {
             $(this).animate({
                 'max-width': 17
             }, 200, function() {
-                console.log("Test");
                 file_upload_field.fadeIn(200);
             });
         } else {
@@ -42,14 +41,14 @@ $( document ).ready( function() {
     $("form#result_submit").submit(function(e) {
         //Submit load data request (controller.analysis_load())
         e.preventDefault();
-        $("button#load_result").text("Loading...");
+        $("button#load_result").html("<img width=20 height=20 src='../static/img/working.gif' /> Loading...");
         var formData = new FormData(this);
         $.ajax({
             url: "/analysis/load",
             type: 'POST',
             data: formData,
             success: function(data) {
-                $("button#load_result").text("Load");
+                $("button#load_result").html("<i class='fas fa-chart-line'></i> Load Analysis");
                 console.log("HERE");
                 displayResult(data);
                 //displayStats(data.sorted_stats, data.unsorted_stats)
@@ -79,7 +78,7 @@ $( document ).ready( function() {
                     if (data.status != "Analysis Complete") {
                         check_status()
                     } else {
-                        $("button#analyze").html('<i class="fas fa-upload"></i> Submit a New Analysis"');
+                        $("button#analyze").text("Analyze");
 						$("span#analyze_status").text("");
                         alert("Analysis complete!");
                         var formData = new FormData();
@@ -234,7 +233,8 @@ $( document ).ready( function() {
         for (var gene in genes_object) {
             //Iterates through genes and displays information
             //HTML for each gene box
-            gene_symbol = genes_object[gene]["Target Gene Symbol"]
+            gene_id = genes_object[gene]["Target Gene ID"];
+            gene_symbol = genes_object[gene]["Target Gene Symbol"];
             log2foldchange = parseFloat(genes_object[gene]["LFC"]).toFixed(5);
             p_value = parseFloat(genes_object[gene]["Y Values"]).toFixed(5);
             unsorted_freq = parseFloat(genes_object[gene]["Unsorted Counts"]).toFixed(5);
@@ -243,12 +243,13 @@ $( document ).ready( function() {
             description = genes_object[gene]["Description"]
             //console.log(typeof(summary));
             if (isNaN(summary)){
-                //console.log("Replacing");
                 summary = "";
             }
 
             $("div.results").append(
+                "<a disabled style='text-decoration: none; color: inherit;' target='_blank' href='https://www.ncbi.nlm.nih.gov/gene/"+String(gene_id)+"'>"+
                 "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+"><p><b>"+genes_object[gene]["Target Gene Symbol"]+"</b></p>" +
+                "</a>"+
                 "<p style='font-size:0.5em'>"+log2foldchange+"</p>" +
                 "<p style='font-size:0.5em'>"+p_value+"</p>" +
                 "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
@@ -393,12 +394,12 @@ $( document ).ready( function() {
 });
 </script>
 <h1>Genetic Screen Anlaysis Pipeline</h1>
-    <form id="data_submit" method="post" enctype="multipart/form-data">
-    <div>
+    <form id="result_submit" method="POST" enctype="multipart/form-data">
+        <div>
         <div class="form-group">
-            Sorted File:
-            <select name="sorted" id="qFast_file_select" class="file_select form-control">
-                {% for item in data_files['fastq'] %}
+            Output file:
+            <select name="result_file" id="result_file_select" class="file_select form-control">
+                {% for item in data_files['output'] %}
                     <option>
                         {{ item.capitalize() }}
                     </option>
@@ -407,45 +408,18 @@ $( document ).ready( function() {
                         Upload your own
                     </option>
             </select>
-            <input name="sorted" id="qFast_file_upload" style="display: none;" class="file_upload form-control file_select" type="file"/>
-
+            <input name="result_file" id="result_file_upload" style="display: none;" class="file_upload" type="file"/>
         </div>
-        <div class="form-group">
-            Unsorted File:
-            <select name="unsorted" id="qFast_file_select" class="file_select form-control">
-                {% for item in data_files['fastq'] %}
-                    <option>
-                        {{ item.capitalize() }}
-                    </option>
-                {% endfor %}
-                    <option>
-                        Upload your own
-                    </option>
-            </select>
-            <input name="unsorted" id="qFast_file_upload" style="display: none;" class="form_control file_select file_upload" type="file"/>
-        </div>
-        <div class="form-group">
-        Guides File:
-            <select name="guides" id="library_file_select" class="file_select form-control">
-                {% for item in data_files['library'] %}
-                    <option>
-                        {{ item.capitalize() }}
-                    </option>
-                {% endfor %}
-                    <option>
-                        Upload your own
-                    </option>
-            </select>
-            <input name="guides" id="library_file_upload" style="display: none;" class="file_upload file_select form-control" type="file" />
-        </div>
-        <div class="form-group">
-            Output File Name:
-                <input name="output" id="file_name_input" class="file_select form-control" />
-        </div>
-
     </div>
-    <button type="submit" id="analyze" class="btn btn-info"><i class="fas fa-upload"></i> Submit a New Analysis</button><span style="font-style: italic" id="analyze_status"></span>
+    <button type="submit" id="load_result" class="btn btn-info"><i class="fas fa-chart-line"></i> Load Analysis</button>
+    <button id="download_result" class="btn btn-info"><i class="fas fa-download"></i> Download .zip</button>
     </form>
+    <br>
+
+
+    <!-- Begin plot stuff -->
+
+
     <div id="plotDiv1"></div>
     <div id="plotDiv2"></div>
     <div id="plotDiv3"></div>
