@@ -18,7 +18,7 @@ import pandas as pd
 curdir = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(curdir, 'tmp/data')
 print(UPLOAD_FOLDER)
-ALLOWED_EXTENSIONS = ['csv', 'fastq']
+ALLOWED_EXTENSIONS = ['csv', 'fastq', 'zip']
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -42,13 +42,29 @@ def upload_file(myfile, file_type):
     else:
         return False
 
+def is_valid_data_file(filename, include_dirs=False):
+    if not filename.startswith('.'):
+        try:
+            if filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS:
+                if include_dirs == True:
+                    return False
+                else:
+                    return True
+        except IndexError:
+            if include_dirs == True:
+                return True
+            else:
+                return False
+    else:
+        return False
+
 def check_data_files():
     """get data files and return them"""
     data_files = {}
 
-    data_files['fastq'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'fastq')) if not f.startswith('.')]
-    data_files['library'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'library')) if not f.startswith('.')]
-    data_files['output'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'output')) if not f.startswith('.')]
+    data_files['fastq'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'fastq')) if is_valid_data_file(f)]
+    data_files['library'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'library')) if is_valid_data_file(f)]
+    data_files['output'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'output')) if is_valid_data_file(f, include_dirs=True)]
     return data_files
 
 
@@ -220,6 +236,11 @@ def index():
     """main index route. just updates current data files and returns them for drop down menu purposes"""
     data_files = check_data_files()
     return render_template("index.html", data_files=data_files)
+
+@app.route('/load')
+def load_route():
+    data_files = check_data_files()
+    return render_template("analysis_load.html", data_files=data_files)
 
 class embellishThread(threading.Thread):
     def __init__(self, FILE):
