@@ -114,6 +114,7 @@ class parseThread(threading.Thread):
         self.unsorted_file = unsorted_file
         self.output_prefix = output_prefix
         self.output_dir = output_dir
+        self.output_dir = os.path.join(output_dir, output_prefix)
         self.guides_file = guides_file
         self.control_file = control_file
         self.count_status = 0
@@ -155,6 +156,8 @@ class parseThread(threading.Thread):
         self.guides_result.to_csv(guide_path)
 
         self.genes_result.sort_values(by=["LFC"], ascending=False, inplace=True)
+        self.genes_result["pos|lfc"] = self.mageck_result_df["pos|lfc"]
+        self.genes_result["-log(pos|p-value)"] = self.mageck_result_df["-log(pos|p-value)"]
         genes_path = self.output_prefix+"_gene_enrichment_calculation.csv"
         print(genes_path)
         self.genes_result.to_csv(genes_path)
@@ -179,6 +182,11 @@ class parseThread(threading.Thread):
         self.status = "Running mageck..."
         #os.chdir(self.output_dir)
         os.system(command)
+        mageck_prefix = self.output_prefix+"_mageck.gene_summary.txt"
+        self.mageck_result_df = pd.read_csv(mageck_prefix, sep="\t")
+        self.mageck_result_df["-log(pos|p-value)"] = self.mageck_result_df["pos|p-value"].apply(np.log2)
+        self.mageck_result_df["-log(pos|p-value)"] = self.mageck_result_df["pos|p-value"].apply(lambda x: x*-1)
+        self.mageck_result_df["pos|lfc"] = self.mageck_result_df["pos|lfc"]
         # p = subprocess.Popen(command, shell=True, cwd=self.output_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         # for line in p.stdout.readlines():
         #    self.status = str(line)

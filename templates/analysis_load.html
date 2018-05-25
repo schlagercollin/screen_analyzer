@@ -192,10 +192,20 @@ $( document ).ready( function() {
         //takes json data from controller and parses it to display the screen data
         var gene_enrichment = eval(result);
         dataframe = jd.dfFromObjArray(gene_enrichment);
+        /*
         dataframe = dataframe.sort("Y Values", ascending=true);
         var x_1 = dataframe.c("LFC").toArray();
         var genes_1 = dataframe.c("Target Gene Symbol").toArray();
         var y_1 = dataframe.c("Y Values").toArray();
+        */
+        x_1 = []
+        y_1 = []
+        genes_1 = []
+
+        dataframe = dataframe.sort("-log(pos|p-value)", ascending=true);
+        var x_4 = dataframe.c("pos|lfc").toArray();
+        var genes_4 = dataframe.c("Target Gene Symbol").toArray();
+        var y_4 = dataframe.c("-log(pos|p-value)").toArray();
 
         dataframe = dataframe.sort("Sorted Counts", ascending=false);
         var y_2 = dataframe.c("Sorted Counts").toArray();
@@ -227,29 +237,27 @@ $( document ).ready( function() {
         */
 
         // Extract data from file
-        dataframe = dataframe.sort("Y Values", ascending=false);
+        dataframe = dataframe.sort("-log(pos|p-value)", ascending=false);
         genes_object = dataframe.toObjArray()
         var counter = 0;
         for (var gene in genes_object) {
             //Iterates through genes and displays information
             //HTML for each gene box
-            gene_id = genes_object[gene]["Target Gene ID"];
-            gene_symbol = genes_object[gene]["Target Gene Symbol"];
+            gene_symbol = genes_object[gene]["Target Gene Symbol"]
             log2foldchange = parseFloat(genes_object[gene]["LFC"]).toFixed(5);
-            p_value = parseFloat(genes_object[gene]["Y Values"]).toFixed(5);
+            p_value = parseFloat(genes_object[gene]["-log(pos|p-value)"]).toFixed(5);
             unsorted_freq = parseFloat(genes_object[gene]["Unsorted Counts"]).toFixed(5);
             sorted_freq = parseFloat(genes_object[gene]["Sorted Counts"]).toFixed(5);
             summary = genes_object[gene]["Summary"]
             description = genes_object[gene]["Description"]
             //console.log(typeof(summary));
             if (isNaN(summary)){
+                //console.log("Replacing");
                 summary = "";
             }
 
             $("div.results").append(
-                "<a disabled style='text-decoration: none; color: inherit;' target='_blank' href='https://www.ncbi.nlm.nih.gov/gene/"+String(gene_id)+"'>"+
                 "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+"><p><b>"+genes_object[gene]["Target Gene Symbol"]+"</b></p>" +
-                "</a>"+
                 "<p style='font-size:0.5em'>"+log2foldchange+"</p>" +
                 "<p style='font-size:0.5em'>"+p_value+"</p>" +
                 "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
@@ -290,9 +298,19 @@ $( document ).ready( function() {
                 line: {width: 1}
             }
         }
+        var trace4 = {
+            x: x_4,
+            y: y_4,
+            mode: 'markers',
+            marker: {
+                //color: colors,
+                line: {width: 1}
+            }
+        }
         var data1 = [ trace1 ];
         var data2 = [ trace2 ];
         var data3 = [ trace3 ];
+        var data4 = [ trace4 ];
         var layout1 = {
             title: "Gene Screen Results (Significance vs Log2(Fold Change))",
             xaxis: {
@@ -332,10 +350,24 @@ $( document ).ready( function() {
             },
             hovermode:'closest'
         }
+        var layout4 = {
+            title: "Mageck",
+            xaxis: {
+                autorange: true,
+                title: "log2(FoldChange)"
+            },
+            yaxis: {
+                //type: 'log',
+                autorange: true,
+                title: "-log(P-value)"
+            },
+            hovermode:'closest'
+        }
         $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
         Plotly.newPlot('plotDiv1', data1, layout1); //create plot
         Plotly.newPlot('plotDiv2', data2, layout2); //create plot
         Plotly.newPlot('plotDiv3', data3, layout3); //create plot
+        Plotly.newPlot('plotDiv4', data4, layout4); //create plot
 
     };
 
@@ -423,6 +455,7 @@ $( document ).ready( function() {
     <div id="plotDiv1"></div>
     <div id="plotDiv2"></div>
     <div id="plotDiv3"></div>
+    <div id="plotDiv4"></div>
     <div class="result_wrapper" style="display: none;">
         <div class="stats">
             <table id="stats_table">
