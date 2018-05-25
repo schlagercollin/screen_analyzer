@@ -83,7 +83,7 @@ $( document ).ready( function() {
 						$("span#analyze_status").text("");
                         alert("Analysis complete!");
                         var formData = new FormData();
-                        formData.append('result_file', data.result);
+                        formData.append('result_file', data.output_dir);
                         $.ajax({
                             url: "/analysis/load",
                             type: 'POST',

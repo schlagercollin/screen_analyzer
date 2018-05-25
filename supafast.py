@@ -9,6 +9,7 @@ from collections import OrderedDict
 import time
 import math
 import threading
+import subprocess
 
 #idfile = sys.argv[1]
 
@@ -99,10 +100,19 @@ def collapse_to_gene_level(dataframe):
     print("Done.")
     return gene_level_df
 
+def create_mageck_input_file(dataframe):
+    """ Mageck input format is tab-delimited file """
+    """ sgRNA   \tGene  \tControl1 (unsorted)  \tSorted1   \n"""
+    mageck_data_frame = dataframe[["sgRNA Target Sequence", "Target Gene Symbol", "Unsorted Counts", "Sorted Counts"]]
+    return mageck_data_frame
+
+
+
 class parseThread(threading.Thread):
-    def __init__(self, sorted_file, unsorted_file, output_dir, guides_file, control_file=None):
+    def __init__(self, sorted_file, unsorted_file, output_prefix, guides_file, output_dir, control_file="Brie_Kinome_controls.txt"):
         self.sorted_file = sorted_file
         self.unsorted_file = unsorted_file
+        self.output_prefix = output_prefix
         self.output_dir = output_dir
         self.guides_file = guides_file
         self.control_file = control_file
@@ -110,39 +120,70 @@ class parseThread(threading.Thread):
         self.output = 0
         self.status = "Thread Initialized"
         print("Initializing thread information...")
-        print(self.output_dir)
+        print(self.output_prefix)
         super().__init__()
 
     def run(self):
-        self.status = "Parsing sorted file..."
-        guides_result = perform_analysis(self.sorted_file, self.unsorted_file, self.guides_file)
+        self.status = "Parsing files..."
+        self.parse_files()
+
         self.status = "Collapsing to Gene Level..."
-        genes_result = collapse_to_gene_level(guides_result)
+        self.genes_result = collapse_to_gene_level(self.guides_result)
 
         self.status = "Computing LFC..."
-        compute_lfc(guides_result)
-        compute_lfc(genes_result)
+        compute_lfc(self.guides_result)
+        compute_lfc(self.genes_result)
 
         self.status = "Computing fischer for guides..."
-        compute_fischer(guides_result)
+        #compute_fischer(self.guides_result)
         self.status = "Computing fischer for genes..."
-        compute_fischer(genes_result)
+        #compute_fischer(self.genes_result)
 
-        # guides_result.sort_values(by=["FDR-Corrected P-Values"], ascending=True, inplace=True)
-        guides_result.sort_values(by=["LFC"], ascending=False, inplace=True)
-        guide_path = self.output_dir+"_guide_enrichment_calculation.csv"
+        # Create mageck input file
+        self.status = "Creating Mageck input file..."
+        mageck_data_frame = create_mageck_input_file(self.guides_result.sort_values(by=["sgRNA Target Sequence"]))
+        self.mageck_path = self.output_prefix+"_mageck_input_file.txt"
+        mageck_data_frame.to_csv(self.mageck_path, sep="\t", index=False)
+
+        # Perform mageck Test
+        self.perform_mageck_test()
+
+        # self.guides_result.sort_values(by=["FDR-Corrected P-Values"], ascending=True, inplace=True)
+        self.guides_result.sort_values(by=["LFC"], ascending=False, inplace=True)
+        guide_path = self.output_prefix+"_guide_enrichment_calculation.csv"
         print(guide_path)
-        guides_result.to_csv(guide_path)
+        self.guides_result.to_csv(guide_path)
 
-        genes_result.sort_values(by=["LFC"], ascending=False, inplace=True)
-        genes_path = self.output_dir+"_gene_enrichment_calculation.csv"
+        self.genes_result.sort_values(by=["LFC"], ascending=False, inplace=True)
+        genes_path = self.output_prefix+"_gene_enrichment_calculation.csv"
         print(genes_path)
-        genes_result.to_csv(genes_path)
+        self.genes_result.to_csv(genes_path)
 
 
         self.status = "Analysis Complete"
-        self.output = guides_result, genes_result
-        return guides_result, genes_result
+        self.output = self.guides_result, self.genes_result
+        return self.guides_result, self.genes_result
+
+    def parse_files(self):
+        self.guides_result = create_dataframe(self.guides_file)
+        self.status = "Parsing sorted file..."
+        sorted_counts_dict = parse_qfast(self.sorted_file, self.guides_file)
+        add_df_column(self.guides_result, sorted_counts_dict, "Sorted Counts")
+
+        self.status = "Parsing unsorted file..."
+        unsorted_counts_dict = parse_qfast(self.unsorted_file, self.guides_file)
+        add_df_column(self.guides_result, unsorted_counts_dict, "Unsorted Counts")
+
+    def perform_mageck_test(self):
+        command = "mageck test -k " + self.mageck_path + " -t 1 -c 0 -n " + str(self.output_dir)+"_mageck" + " --sort-criteria pos --gene-lfc-method alphamean --control-sgrna " + str(self.control_file)
+        self.status = "Running mageck..."
+        #os.chdir(self.output_dir)
+        os.system(command)
+        # p = subprocess.Popen(command, shell=True, cwd=self.output_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        # for line in p.stdout.readlines():
+        #    self.status = str(line)
+        #    print("MAGECK: ", str(line))
+        # p.wait()
 
 def main():
     start = time.time()

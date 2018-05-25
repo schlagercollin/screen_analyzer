@@ -3,7 +3,7 @@
 Flask controller for parse fastq webapp.
 """
 
-import os, json, threading, sys, csv, shutil
+import os, json, threading, sys, csv, shutil, subprocess
 from flask import Flask, render_template, request, jsonify, url_for, send_from_directory
 from werkzeug.utils import secure_filename
 #import screen_analysis_BP
@@ -152,10 +152,11 @@ def load_csv_as_list(file_name, skip_header=False, delimiter=','):
 def analysis_status():
     if request.method == 'POST':
         result = None
-        count_status, status = check_status()
+        status, output_dir = check_status()
+        output_dir = str(output_dir)
         if status == "Analysis Complete":
             print("Analysis Confirmed Complete!")
-        return jsonify(count_status=count_status, status=status)
+        return jsonify(status=status, output_dir=output_dir)
 
 @app.route('/analysis/status', methods=['POST'])
 def analysis_get_result():
@@ -172,6 +173,7 @@ def analyze_data(sorted, unsorted, output, guides, control="Brie_Kinome_controls
     print(UPLOAD_FOLDER, sorted, unsorted, output, guides)
 
     os.mkdir(os.path.join(UPLOAD_FOLDER, 'output', output)) # Make output directory
+    output_dir = os.path.join(UPLOAD_FOLDER, 'output', output) # Set output path to new dir
     output = os.path.join(UPLOAD_FOLDER, 'output', output, output) # Set output path to new dir
 
     guides = os.path.join(UPLOAD_FOLDER, 'library', guides) # Get input file paths
@@ -180,7 +182,7 @@ def analyze_data(sorted, unsorted, output, guides, control="Brie_Kinome_controls
     control = os.path.join(UPLOAD_FOLDER, control)
     print("About to start the thread...")
 
-    myThread = supafast.parseThread(sorted, unsorted, output, guides, control_file=None)
+    myThread = supafast.parseThread(sorted, unsorted, output, guides, output_dir, control_file="Brie_Kinome_controls.txt")
     myThread.start()
 
     return True
@@ -188,9 +190,9 @@ def analyze_data(sorted, unsorted, output, guides, control="Brie_Kinome_controls
 def check_status():
     # Get count status and status of analysis thread
     global myThread
-    count_status = myThread.count_status
     status = myThread.status
-    return count_status, status
+    output_dir = myThread.output_prefix
+    return status, output_dir
 
 def get_result():
     global myThread
