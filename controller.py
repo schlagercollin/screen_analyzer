@@ -129,8 +129,10 @@ def load_from_dir(result_file_prefix):
     #unsorted_stats_file = result_file_prefix + "_unsorted_statistics.csv"
     gene_enrichment_file = result_file_prefix + "_gene_enrichment_calculation.csv"
     guide_enrichment_file = result_file_prefix + "_guide_enrichment_calculation.csv"
+    #mageck_result_file = result_file_prefix + ".gene_summary.txt"
     gene_enrichment_df = pd.read_csv(gene_enrichment_file)
     guide_enrichment_df = pd.read_csv(guide_enrichment_file)
+    #mageck_result_df = pd.read_csv(mageck_result_file, sep="\t")
     gene_enrichment = str(list(gene_enrichment_df.T.to_dict().values()))
     guide_enrichment = str(list(guide_enrichment_df.T.to_dict().values()))
     return gene_enrichment, guide_enrichment
