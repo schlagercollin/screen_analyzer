@@ -202,7 +202,7 @@ $( document ).ready( function() {
         y_1 = []
         genes_1 = []
 
-        dataframe = dataframe.sort("-log(pos|p-value)", ascending=true);
+        dataframe = dataframe.sort("pos|lfc", ascending=true);
         var x_4 = dataframe.c("pos|lfc").toArray();
         var genes_4 = dataframe.c("Target Gene Symbol").toArray();
         var y_4 = dataframe.c("-log(pos|p-value)").toArray();
@@ -237,7 +237,7 @@ $( document ).ready( function() {
         */
 
         // Extract data from file
-        dataframe = dataframe.sort("-log(pos|p-value)", ascending=false);
+        dataframe = dataframe.sort("-log(pos|p-value)", ascending=true);
         genes_object = dataframe.toObjArray()
         var counter = 0;
         for (var gene in genes_object) {
@@ -265,7 +265,7 @@ $( document ).ready( function() {
                 "</div>"
             );
             counter += 1;
-            if (counter >= 1000){
+            if (counter >= 10000){
                 break;
             }
         };
@@ -301,6 +301,7 @@ $( document ).ready( function() {
         var trace4 = {
             x: x_4,
             y: y_4,
+            text: genes_4,
             mode: 'markers',
             marker: {
                 //color: colors,

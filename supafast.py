@@ -184,7 +184,7 @@ class parseThread(threading.Thread):
         os.system(command)
         mageck_prefix = self.output_prefix+"_mageck.gene_summary.txt"
         self.mageck_result_df = pd.read_csv(mageck_prefix, sep="\t")
-        self.mageck_result_df["-log(pos|p-value)"] = self.mageck_result_df["pos|p-value"].apply(np.log2)
+        self.mageck_result_df["-log(pos|p-value)"] = self.mageck_result_df["pos|p-value"].apply(np.log)
         self.mageck_result_df["-log(pos|p-value)"] = self.mageck_result_df["pos|p-value"].apply(lambda x: x*-1)
         self.mageck_result_df["pos|lfc"] = self.mageck_result_df["pos|lfc"]
         # p = subprocess.Popen(command, shell=True, cwd=self.output_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
