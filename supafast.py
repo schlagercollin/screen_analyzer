@@ -78,6 +78,7 @@ def compute_fischer(dataframe):
     adjEnrichPVals = compTool.multipletests(list(dataframe["Fischer P-Values"]), method='fdr_bh', is_sorted=False)[1]
     assert (len(adjEnrichPVals) == len(dataframe))
     dataframe["FDR-Corrected P-Values"] = adjEnrichPVals
+    dataframe["-log(FDR-Corrected P-Values)"] = dataframe["FDR-Corrected P-Values"].apply(lambda x: -1*math.log(x,10))
     print("Done.")
     return dataframe
 
@@ -110,6 +111,7 @@ def create_mageck_input_file(dataframe):
 
 class parseThread(threading.Thread):
     def __init__(self, sorted_file, unsorted_file, output_prefix, guides_file, output_dir, control_file="Brie_Kinome_controls.txt"):
+        self.config_analysis = {"Mageck": True, "Fischer": False}
         self.sorted_file = sorted_file
         self.unsorted_file = unsorted_file
         self.output_prefix = output_prefix
@@ -124,7 +126,7 @@ class parseThread(threading.Thread):
         print(self.output_prefix)
         super().__init__()
 
-    def run(self):
+    def run(self, lfc=False, fischer=False, mageck=False):
         self.status = "Parsing files..."
         self.parse_files()
 
@@ -135,48 +137,39 @@ class parseThread(threading.Thread):
         compute_lfc(self.guides_result)
         compute_lfc(self.genes_result)
 
-        self.status = "Computing fischer for guides..."
-        #compute_fischer(self.guides_result)
-        self.status = "Computing fischer for genes..."
-        #compute_fischer(self.genes_result)
+        if self.config_analysis["Fischer"] == True:
+            self.status = "Computing fischer for guides..."
+            compute_fischer(self.guides_result)
+            self.status = "Computing fischer for genes..."
+            compute_fischer(self.genes_result)
 
-        # Create mageck input file
-        self.status = "Creating Mageck input file..."
-        mageck_data_frame = create_mageck_input_file(self.guides_result.sort_values(by=["sgRNA Target Sequence"]))
-        self.mageck_path = self.output_prefix+"_mageck_input_file.txt"
-        mageck_data_frame.to_csv(self.mageck_path, sep="\t", index=False)
+        if self.config_analysis["Mageck"] == True:
+            # Create mageck input file
+            self.status = "Creating Mageck input file..."
+            mageck_data_frame = create_mageck_input_file(self.guides_result.sort_values(by=["sgRNA Target Sequence"]))
+            self.mageck_path = self.output_prefix+"_mageck_input_file.txt"
+            mageck_data_frame.to_csv(self.mageck_path, sep="\t", index=False)
 
-        # Perform mageck Test
-        self.perform_mageck_test()
+            # Perform mageck Test
+            self.perform_mageck_test()
+            # Ensure that the mageck tests are sorted the same as the genes_result
+            # Debug something here regarding index needing to be target gene symbol
+            self.genes_result.set_index('Target Gene Symbol', drop=False, inplace=True)
+            self.mageck_result_df.set_index('id', drop=False, inplace=True)
+            self.genes_result.drop("Non-Targeting-Control", inplace=True) #temporary!
+            self.genes_result.sort_values(by=["Target Gene Symbol"], ascending=False, inplace=True)
+            self.mageck_result_df.sort_values(by=["id"], ascending=False, inplace=True)
+            self.genes_result["pos|lfc"] = self.mageck_result_df["pos|lfc"]
+            self.genes_result["pos|p-value"] = self.mageck_result_df["pos|p-value"]
+            self.genes_result["-log(pos|p-value)"] = self.mageck_result_df["-log(pos|p-value)"]
 
-        # self.guides_result.sort_values(by=["FDR-Corrected P-Values"], ascending=True, inplace=True)
+
+        self.genes_result.sort_values(by=["LFC"], inplace=True)
+        genes_path = self.output_prefix+"_gene_enrichment_calculation.csv"
+        self.genes_result.to_csv(genes_path)
         self.guides_result.sort_values(by=["LFC"], ascending=False, inplace=True)
         guide_path = self.output_prefix+"_guide_enrichment_calculation.csv"
         self.guides_result.to_csv(guide_path)
-
-        # Ensure that the mageck tests are sorted the same as the genes_result
-
-        # self.genes_result.set_index('Target Gene Symbol', drop=False, inplace=True)
-
-        # self.genes_result.reset_index(drop=True)
-
-        # Debug something here regarding index needing to be target gene symbol
-        self.genes_result.set_index('Target Gene Symbol', drop=False, inplace=True)
-        self.mageck_result_df.set_index('id', drop=False, inplace=True)
-        self.genes_result.drop("Non-Targeting-Control", inplace=True) #temporary!
-        self.genes_result.sort_values(by=["Target Gene Symbol"], ascending=False, inplace=True)
-        self.mageck_result_df.sort_values(by=["id"], ascending=False, inplace=True)
-        print(self.genes_result["Target Gene Symbol"])
-        print(self.mageck_result_df["id"])
-        #print(self.mageck_result_df["pos|lfc"])
-        #print(self.mageck_result_df["id"])
-
-        self.genes_result["pos|lfc"] = self.mageck_result_df["pos|lfc"]
-        self.genes_result["pos|p-value"] = self.mageck_result_df["pos|p-value"]
-        self.genes_result["-log(pos|p-value)"] = self.mageck_result_df["-log(pos|p-value)"]
-        # self.genes_result.sort_values(by=["pos|p-value"], inplace=True)
-        genes_path = self.output_prefix+"_gene_enrichment_calculation.csv"
-        self.genes_result.to_csv(genes_path)
 
 
         self.status = "Analysis Complete"

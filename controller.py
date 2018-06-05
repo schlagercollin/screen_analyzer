@@ -92,7 +92,20 @@ def analysis_submit():
 
         output_file_name = request.values['output']
 
-        output = analyze_data(sorted_fastq, unsorted_fastq, output_file_name, guides)
+        if "Mageck" in request.values:
+            print("Mageck enabled!")
+            mageck = True
+        else:
+            mageck = False
+
+        if "Fischer" in request.values:
+            print("Fischer enabled!")
+            fischer = True
+        else:
+            fischer = False
+        config = {"Mageck": mageck, "Fischer": fischer}
+
+        output = analyze_data(sorted_fastq, unsorted_fastq, output_file_name, guides, config)
         return jsonify(result=output)
 
 @app.route('/analysis/load', methods=['POST'])
@@ -169,7 +182,7 @@ def analysis_get_result():
 global myThread
 myThread = None
 
-def analyze_data(sorted, unsorted, output, guides, control="Brie_Kinome_controls.txt"):
+def analyze_data(sorted, unsorted, output, guides, config, control="Brie_Kinome_controls.txt"):
     global myThread
     """wrapper for parse_qfast function. handles some path information"""
     print(UPLOAD_FOLDER, sorted, unsorted, output, guides)
@@ -185,6 +198,8 @@ def analyze_data(sorted, unsorted, output, guides, control="Brie_Kinome_controls
     print("About to start the thread...")
 
     myThread = supafast.parseThread(sorted, unsorted, output, guides, output_dir, control_file="Brie_Kinome_controls.txt")
+    print(config)
+    myThread.config_analysis = config
     myThread.start()
 
     return True
