@@ -152,14 +152,30 @@ class parseThread(threading.Thread):
         # self.guides_result.sort_values(by=["FDR-Corrected P-Values"], ascending=True, inplace=True)
         self.guides_result.sort_values(by=["LFC"], ascending=False, inplace=True)
         guide_path = self.output_prefix+"_guide_enrichment_calculation.csv"
-        print(guide_path)
         self.guides_result.to_csv(guide_path)
 
-        self.genes_result.sort_values(by=["LFC"], ascending=False, inplace=True)
+        # Ensure that the mageck tests are sorted the same as the genes_result
+
+        # self.genes_result.set_index('Target Gene Symbol', drop=False, inplace=True)
+
+        # self.genes_result.reset_index(drop=True)
+
+        # Debug something here regarding index needing to be target gene symbol
+        self.genes_result.set_index('Target Gene Symbol', drop=False, inplace=True)
+        self.mageck_result_df.set_index('id', drop=False, inplace=True)
+        self.genes_result.drop("Non-Targeting-Control", inplace=True) #temporary!
+        self.genes_result.sort_values(by=["Target Gene Symbol"], ascending=False, inplace=True)
+        self.mageck_result_df.sort_values(by=["id"], ascending=False, inplace=True)
+        print(self.genes_result["Target Gene Symbol"])
+        print(self.mageck_result_df["id"])
+        #print(self.mageck_result_df["pos|lfc"])
+        #print(self.mageck_result_df["id"])
+
         self.genes_result["pos|lfc"] = self.mageck_result_df["pos|lfc"]
+        self.genes_result["pos|p-value"] = self.mageck_result_df["pos|p-value"]
         self.genes_result["-log(pos|p-value)"] = self.mageck_result_df["-log(pos|p-value)"]
+        # self.genes_result.sort_values(by=["pos|p-value"], inplace=True)
         genes_path = self.output_prefix+"_gene_enrichment_calculation.csv"
-        print(genes_path)
         self.genes_result.to_csv(genes_path)
 
 
@@ -184,9 +200,8 @@ class parseThread(threading.Thread):
         os.system(command)
         mageck_prefix = self.output_prefix+"_mageck.gene_summary.txt"
         self.mageck_result_df = pd.read_csv(mageck_prefix, sep="\t")
-        self.mageck_result_df["-log(pos|p-value)"] = self.mageck_result_df["pos|p-value"].apply(np.log)
-        self.mageck_result_df["-log(pos|p-value)"] = self.mageck_result_df["pos|p-value"].apply(lambda x: x*-1)
-        self.mageck_result_df["pos|lfc"] = self.mageck_result_df["pos|lfc"]
+        self.mageck_result_df["-log(pos|p-value)"] = self.mageck_result_df["pos|p-value"].apply(lambda x: -1*math.log(x, 10))
+        # self.mageck_result_df["pos|lfc"] = self.mageck_result_df["pos|lfc"]
         # p = subprocess.Popen(command, shell=True, cwd=self.output_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         # for line in p.stdout.readlines():
         #    self.status = str(line)

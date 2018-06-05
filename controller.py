@@ -1,4 +1,4 @@
-#!/Users/collinschlager/anaconda/bin/python3
+#!/usr/local/bin/python3
 """
 Flask controller for parse fastq webapp.
 """
