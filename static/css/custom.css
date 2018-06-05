@@ -95,3 +95,17 @@ table {
 th, td {
     padding: 15px;
 }
+
+.btn-primary.focus, .btn-primary:focus {
+   box-shadow: none !important;
+}
+
+.btn-primary:not([disabled]):not(.disabled).active, .btn-primary:not([disabled]):not(.disabled):active, .show>.btn-primary.dropdown-toggle{
+    box-shadow: none !important;
+    background-color: #489df9;
+    border-color: #243446;
+}
+
+.data_option {
+    margin-right: 20px;
+}
