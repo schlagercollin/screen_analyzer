@@ -1,18 +1,24 @@
-#!/Users/collinschlager/anaconda/bin/python3
+#!/usr/local/bin/python3
 """
 Flask controller for parse fastq webapp.
 """
 
-import os, json, threading, sys
-from flask import Flask, render_template, request, jsonify, url_for
+import os, json, threading, sys, csv, shutil, subprocess
+from flask import Flask, render_template, request, jsonify, url_for, send_from_directory
 from werkzeug.utils import secure_filename
-from screen_analyzer import *
+#import screen_analysis_BP
+import supafast
 import library_embellish
+import time
+import logging
+import pandas as pd
+#logging.basicConfig()
+#logging.getLogger().setLevel(logging.DEBUG)
 
 curdir = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(curdir, 'tmp/data')
 print(UPLOAD_FOLDER)
-ALLOWED_EXTENSIONS = ['csv', 'fastq']
+ALLOWED_EXTENSIONS = ['csv', 'fastq', 'zip']
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -36,12 +42,29 @@ def upload_file(myfile, file_type):
     else:
         return False
 
+def is_valid_data_file(filename, include_dirs=False):
+    if not filename.startswith('.'):
+        try:
+            if filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS:
+                if include_dirs == True:
+                    return False
+                else:
+                    return True
+        except IndexError:
+            if include_dirs == True:
+                return True
+            else:
+                return False
+    else:
+        return False
+
 def check_data_files():
     """get data files and return them"""
     data_files = {}
-    data_files['fastq'] = os.listdir(os.path.join(UPLOAD_FOLDER, 'fastq'))
-    data_files['library'] = os.listdir(os.path.join(UPLOAD_FOLDER, 'library'))
-    data_files['output'] = os.listdir(os.path.join(UPLOAD_FOLDER, 'output'))
+
+    data_files['fastq'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'fastq')) if is_valid_data_file(f)]
+    data_files['library'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'library')) if is_valid_data_file(f)]
+    data_files['output'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'output')) if is_valid_data_file(f, include_dirs=True)]
     return data_files
 
 
@@ -50,17 +73,39 @@ def analysis_submit():
     """on analysis click: fetches stashed files or uploads and uses the new one
     returns json object for display (see index.html)"""
     if request.method == 'POST':
-        fastq = request.values['fastq']
-        if fastq == "Upload your own":
-            fastq = request.files['fastq']
-            fastq = upload_file(fastq, "fastq")
-        library = request.values['library']
-        print("Request: ", request.files)
-        if 'library' in request.files and request.files['library'].filename != '':
-            library = request.files['library']
-            print("File: ",library)
-            library = upload_file(library, "library")
-        output = analyze_data(fastq, library)
+
+        sorted_fastq = request.values['sorted']
+        if sorted_fastq == "Upload your own":
+            sorted_fastq = request.files['sorted']
+            sorted_fastq = upload_file(sorted_fastq, "fastq")
+
+        unsorted_fastq = request.values['unsorted']
+        if unsorted_fastq == "Upload your own":
+            unsorted_fastq = request.files['unsorted']
+            unsorted_fastq = upload_file(unsorted_fastq, "fastq")
+
+        guides = request.values['guides']
+        if 'guides' in request.files and request.files['guides'].filename != '':
+            guides = request.files['guides']
+            print("File: ",guides)
+            guides = upload_file(guides, "library")
+
+        output_file_name = request.values['output']
+
+        if "Mageck" in request.values:
+            print("Mageck enabled!")
+            mageck = True
+        else:
+            mageck = False
+
+        if "Fischer" in request.values:
+            print("Fischer enabled!")
+            fischer = True
+        else:
+            fischer = False
+        config = {"Mageck": mageck, "Fischer": fischer, "Ratio": False}
+
+        output = analyze_data(sorted_fastq, unsorted_fastq, output_file_name, guides, config)
         return jsonify(result=output)
 
 @app.route('/analysis/load', methods=['POST'])
@@ -69,21 +114,72 @@ def analysis_load():
     returns json object for display (see index.html)"""
     if request.method == 'POST':
         result_file = request.values['result_file']
+        print(result_file)
         if result_file == "Upload your own":
             result_file = request.files['result_file']
             result_file = upload_file(result_file, "result")
-        result_file = os.path.join(UPLOAD_FOLDER, "output", result_file)
-        output = load_from_file(result_file)
-        return jsonify(result=output)
+
+        result_file_dir = os.path.join(UPLOAD_FOLDER, "output", result_file)
+        result_file_prefix = os.path.join(UPLOAD_FOLDER, "output", result_file, result_file)
+
+        try:
+            contents = os.listdir(result_file_dir)
+            date = time.strftime("%D %H:%M", time.localtime(int(os.path.getctime(result_file_dir))))
+        except:
+            contents = None
+            date = "Unable to fetch date information."
+        gene_enrichment, guide_enrichment = load_from_dir(result_file_prefix)
+        print("made it here")
+        return jsonify(data=gene_enrichment, contents=contents, date=date)
+
+@app.route('/downloads/<path:dir_name>', methods=['GET', 'POST'])
+def download(dir_name):
+    dir_name_path = os.path.join(UPLOAD_FOLDER, "output", dir_name)
+    #print("Making Archive...")
+    #shutil.make_archive(dir_name_path, 'zip', dir_name_path)
+    #print("Done.")
+    file_name = dir_name+".zip"
+    directory_path = os.path.join(UPLOAD_FOLDER, "output")
+    print(directory_path, file_name)
+    shutil.make_archive(dir_name_path, 'zip', dir_name_path)
+    return send_from_directory(directory=directory_path, filename=file_name)
+
+def load_from_dir(result_file_prefix):
+    # function to load relevant portions from a directory
+    #sorted_stats_file = result_file_prefix + "_sorted_statistics.csv"
+    #unsorted_stats_file = result_file_prefix + "_unsorted_statistics.csv"
+    gene_enrichment_file = result_file_prefix + "_gene_enrichment_calculation.csv"
+    guide_enrichment_file = result_file_prefix + "_guide_enrichment_calculation.csv"
+    #mageck_result_file = result_file_prefix + ".gene_summary.txt"
+    gene_enrichment_df = pd.read_csv(gene_enrichment_file)
+    guide_enrichment_df = pd.read_csv(guide_enrichment_file)
+    #mageck_result_df = pd.read_csv(mageck_result_file, sep="\t")
+    gene_enrichment = str(list(gene_enrichment_df.T.to_dict().values()))
+    guide_enrichment = str(list(guide_enrichment_df.T.to_dict().values()))
+    return gene_enrichment, guide_enrichment
+    #mageck_file = result_file_prefix + "_mageck.sgrna_summary.txt"
+    #gene_enrichment = load_csv_as_list(gene_enrichment_file, skip_header=True)
+    #sorted_stats = load_csv_as_list(sorted_stats_file, skip_header=False)
+    #unsorted_stats = load_csv_as_list(unsorted_stats_file, skip_header=False)
+    #mageck_results = load_csv_as_list(mageck_file, skip_header=True, delimiter="\t")
+    #return gene_enrichment, sorted_stats, unsorted_stats, mageck_results
+
+def load_csv_as_list(file_name, skip_header=False, delimiter=','):
+    with open(file_name, "r") as csv_file:
+        reader = csv.reader(csv_file, delimiter=delimiter)
+        if skip_header == True:
+            next(reader)
+        return list(reader)
 
 @app.route('/analysis/status', methods=['POST'])
 def analysis_status():
     if request.method == 'POST':
         result = None
-        output = check_status()
-        if output == "Complete":
-            result = get_result()
-        return jsonify(myStatus=output, result=result)
+        status, output_dir = check_status()
+        output_dir = str(output_dir)
+        if status == "Analysis Complete":
+            print("Analysis Confirmed Complete!")
+        return jsonify(status=status, output_dir=output_dir)
 
 @app.route('/analysis/status', methods=['POST'])
 def analysis_get_result():
@@ -94,27 +190,71 @@ def analysis_get_result():
 global myThread
 myThread = None
 
-def analyze_data(fastq, library):
+def analyze_data(sorted, unsorted, output, guides, config, control="Brie_Kinome_controls.txt"):
     global myThread
     """wrapper for parse_qfast function. handles some path information"""
-    print(UPLOAD_FOLDER, fastq, library)
-    output_file = os.path.join(UPLOAD_FOLDER, "output", fastq+library+".json")
-    library = os.path.join(UPLOAD_FOLDER, 'library', library)
-    fastq = os.path.join(UPLOAD_FOLDER,'fastq', fastq)
-    myThread = parseThread(fastq, library, output_file)
+    print(UPLOAD_FOLDER, sorted, unsorted, output, guides)
+
+    os.mkdir(os.path.join(UPLOAD_FOLDER, 'output', output)) # Make output directory
+    output_dir = os.path.join(UPLOAD_FOLDER, 'output', output) # Set output path to new dir
+    output = os.path.join(UPLOAD_FOLDER, 'output', output, output) # Set output path to new dir
+
+    guides = os.path.join(UPLOAD_FOLDER, 'library', guides) # Get input file paths
+    sorted = os.path.join(UPLOAD_FOLDER,'fastq', sorted)
+    unsorted = os.path.join(UPLOAD_FOLDER,'fastq', unsorted)
+    control = os.path.join(UPLOAD_FOLDER, control)
+    print("About to start the thread...")
+
+    myThread = supafast.parseThread(sorted, unsorted, output, guides, output_dir, control_file="Brie_Kinome_controls.txt")
+    print(config)
+    myThread.config_analysis = config
     myThread.start()
+
     return True
 
 def check_status():
+    # Get count status and status of analysis thread
     global myThread
-    myStatus = myThread.status() 
-    return myThread.status()
+    status = myThread.status
+    output_dir = myThread.output_prefix
+    return status, output_dir
 
 def get_result():
     global myThread
-    myResult = myThread.myResult
+    myResult = myThread.output
     return myResult
 
+@app.route('/compare')
+def compare():
+    data_files = check_data_files()
+    return render_template("compare.html", data_files=data_files)
+
+@app.route('/compare/submit', methods=['POST'])
+def compare_submit():
+    """on analysis click: fetches stashed files or uploads and uses the new one
+    returns json object for display (see index.html)"""
+    if request.method == 'POST':
+        unsorted_pop = request.values['unsorted_pop']
+        if unsorted_pop == "Upload your own":
+            unsorted_pop = request.files['unsorted_pop']
+            unsorted_pop = upload_file(unsorted_pop, "fastq")
+        sorted_pop = request.values['sorted_pop']
+        if sorted_pop == "Upload your own":
+            sorted_pop = request.files['sorted_pop']
+            sorted_pop = upload_file(sorted_pop, "fastq")
+        output_file = request.values['output_file_name']
+        if output_file == '':
+            output_file = "comparison"+ str(int(time.time())) + ".json"
+        output = compare_data(unsorted_pop, sorted_pop, output_file)
+        return jsonify(result=output)
+
+def compare_data(unsorted_pop, sorted_pop, output_file):
+    """wrapper for compare function. handles some path information"""
+    output_file = os.path.join(UPLOAD_FOLDER, "comparisons", output_file)
+    unsorted_pop = os.path.join(UPLOAD_FOLDER, 'output', unsorted_pop)
+    sorted_pop = os.path.join(UPLOAD_FOLDER,'output', sorted_pop)
+    output = screen_analyzer.compare(unsorted_pop, sorted_pop, output_file)
+    return output
 
 @app.route('/')
 @app.route('/index')
@@ -123,6 +263,11 @@ def index():
     """main index route. just updates current data files and returns them for drop down menu purposes"""
     data_files = check_data_files()
     return render_template("index.html", data_files=data_files)
+
+@app.route('/load')
+def load_route():
+    data_files = check_data_files()
+    return render_template("analysis_load.html", data_files=data_files)
 
 class embellishThread(threading.Thread):
     def __init__(self, FILE):
@@ -147,7 +292,7 @@ def embellish_load():
         myThread.start()
         output = "Embellishing process started. Check back for embellished file."
         return jsonify(result=output)
-    
+
 
 @app.route('/embellish')
 def embellish():
@@ -155,9 +300,13 @@ def embellish():
     data_files = check_data_files()
     return render_template("embellish.html", data_files=data_files)
 
+@app.route('/about')
+def about():
+    """main route for about"""
+    return render_template("about.html")
+
 
 
 
 if __name__ == '__main__':
     app.run(debug=True)
-

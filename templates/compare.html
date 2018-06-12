@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block content %}
+<script type="text/javascript">
+$( document ).ready( function() {
+    $("select.file_select").change(function(){
+        var file_upload_field = $(this).siblings("input.file_upload");
+        if ($(this).val() == "Upload your own") {
+            $(this).animate({
+                'max-width': 17
+            }, 200, function() {
+                file_upload_field.fadeIn(200);
+            });
+        } else {
+            file_upload_field.fadeOut(0);
+            $(this).animate({
+                'max-width': 600
+            }, 200, function () {
+
+            })
+        }
+    });
+    $("form#data_submit").submit(function(e) {
+        //Submit data analysis request (controller.analysis_submit())
+        e.preventDefault();
+        $("button#analyze").text("Comparing...");
+        var formData = new FormData(this);
+        $.ajax({
+            url: "/compare/submit",
+            type: 'POST',
+            data: formData,
+            success: function(data) {
+                console.log(data.result);
+                displayResult(data.result);
+				$("button#analyze").text("Compare");
+            },
+            processData: false,
+            contentType: false
+        });
+    });
+    $("form#result_submit").submit(function(e) {
+        //Submit load data request (controller.analysis_load())
+        e.preventDefault();
+        $("button#load_result").text("Loading...");
+        var formData = new FormData(this);
+        $.ajax({
+            url: "/analysis/load",
+            type: 'POST',
+            data: formData,
+            success: function(data) {
+                displayResult(data.result); //display the data
+            },
+            processData: false,
+            contentType: false
+        });
+    });
+
+    function check_status(){
+        setTimeout(function(){
+            console.log("Poll for status: ");
+            $.ajax({
+                url: "/analysis/status",
+                type: 'POST',
+                success: function(data) {
+                    $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" />'+data.myStatus+' genes scanned.'); //display progress
+                    console.log(data.myStatus);
+                    if (data.myStatus != "Complete") {
+                        check_status()
+                    } else {
+                        $("button#analyze").text("Analyze");
+						$("span#analyze_status").text("");
+						displayResult(data.result);
+						
+                    };
+                },
+                processData: false,
+                contentType: false,
+            });
+        }, 100);
+    };
+
+    function displayResult(raw_result) {
+        //takes json data from controller and parses it to display the screen data
+        var geneDict = $.parseJSON(raw_result)[0]; //get geneDict (first dict in json list object)
+        console.log(geneDict);
+        try {
+            var stats = $.parseJSON(raw_result)[1]; //get stats (second dict in json list object
+
+            $("#number_matched").text(stats["number_matched"]); //update stats table
+            $("#number_unmatched").text(stats["number_unmatched"]);
+            $("#gene_count").text(stats["gene_count"]);
+        }
+        catch(err) {
+            console.log(err);
+        };
+
+        var x_vals = Object.keys(geneDict); //get x value data (gene)
+        var y_vals = [];
+        $("div.results").empty(); //clear old data stuff
+        for (var gene in geneDict) {
+            //Is there a faster way to do this?
+            //Iterates through genes and displays information
+            //HTML for each gene box
+            $("div.results").append(
+                "<div class='flex-item geneResult restrained' name="+gene+"><p><b>"+gene+"</b>" +
+                "<p style='font-size:0.5em'>"+geneDict[gene]['frequency']+"</p>" +
+                "<p style='font-size:0.5em'>"+parseFloat(Math.round(geneDict[gene]['logRatio'] * 100) / 100).toFixed(2)+"</p>" +
+                "<p class='details invisible' style='font-size:0.5em'>"+geneDict[gene]['description']+"</p>" +
+                "<p class='details invisible' style='font-size:0.3em'>"+geneDict[gene]['summary']+"</p>" +
+                "</div>"
+            );
+            y_vals.push(geneDict[gene]["logRatio"]); //add frequency for y value data
+        }
+
+        //Plotly stuff
+        var trace1 = {
+            x: x_vals,
+            y: y_vals,
+            mode: 'markers'
+        }
+        var data = [ trace1 ];
+        var layout = {
+            title: "Comparison Results (Log_2_Ratio vs Gene Target)",
+            xaxis: {
+                autorange: true,
+                title: "Gene Target"
+            },
+            yaxis: {
+                //type: 'log',
+				zeroline: false,
+                autorange: true,
+                title: "Log2Ratio"
+            }
+        }
+
+        $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
+
+        Plotly.newPlot('plotDiv', data, layout); //create plot
+    };
+
+    $("#search").on("keyup", function(){
+        //Provides search functionality for genes (filter on keyup)
+        var input, filter, container, li, a, i;
+        input = $("#search");
+        filter = input.val().toUpperCase();
+        container = $(".results");
+        geneResults = container.children(".geneResult");
+        for (i = 0; i < geneResults.length; i++) {
+            a = $(geneResults[i]);
+            if (a.attr('name').toUpperCase().indexOf(filter) > -1) {
+                geneResults[i].style.display = "";
+            } else {
+                geneResults[i].style.display = "none";
+
+            }
+        }
+    });
+    $("div.results").on('click', '.geneResult', function(){
+        //Expands gene box to display information
+        if ($(this).hasClass("restrained")) {
+            $(this).find(".details").removeClass("invisible");
+            $(this).removeClass("restrained");
+            console.log($(this));
+            var $element = $( $(this) );
+            setTimeout(function(){
+                console.log($(this));
+                var $window = $(window),
+                    elementTop = $element.offset().top,
+                    elementHeight = $element.height(),
+                    viewportHeight = $window.height(),
+                    scrollIt = elementTop - ((viewportHeight - elementHeight) / 2);
+                $("HTML, BODY").animate({scrollTop: scrollIt}, 500);
+            }, 200);
+        } else {
+            $(this).find(".details").addClass("invisible");
+            $(this).addClass("restrained");
+        }
+        $('.geneResult').not(this).addClass("restrained");
+        $('.geneResult').not(this).find(".details").addClass("invisible");
+    });
+
+    function scrollToCenter (my_element){
+        console.log("Scroll?");
+        var $window = $(window),
+            $element = $(my_element),
+            elementTop = $element.offset().top,
+            elementHeight = $element.height(),
+            viewportHeight = $window.height(),
+            scrollIt = elementTop - ((viewportHeight - elementHeight) / 2);
+            $("HTML, BODY").animate({scrollTop: scrollIt}, 500)
+    };
+
+});
+</script>
+<h1>Screen Comparison:</h1>
+    <form id="data_submit" method="post" enctype="multipart/form-data">
+    <div>
+        <div>
+            Unsorted/Control Population:
+            <select name="unsorted_pop" id="qFast_file_select" class="file_select">
+                {% for item in data_files['output'] %}
+                    <option>
+                        {{ item.capitalize() }}
+                    </option>
+                {% endfor %}
+                    <option>
+                        Upload your own
+                    </option>
+            </select>
+            <input name="unsorted_pop" style="display: none;" class="file_upload" type="file"/>
+        </div>
+        <div>
+        Sorted/Selected Population:
+            <select name="sorted_pop" id="library_file_select" class="file_select">
+                {% for item in data_files['output'] %}
+                    <option>
+                        {{ item.capitalize() }}
+                    </option>
+                {% endfor %}
+                    <option>
+                        Upload your own
+                    </option>
+            </select>
+            <input name="sorted_pop" style="display: none;" class="file_upload" type="file" />
+        </div>
+    </div>
+    <input name="output_file_name" style="width: 200px; margin: 10px;" type=text placeholder="Enter output file name." /><button type="submit" id="analyze" class="btn btn-info">Compare</button><span style="font-style: italic" id="analyze_status"></span>
+    </form>
+       <div id="plotDiv"></div>
+    <div class="result_wrapper" style="display: none;">
+        <div class="stats">
+            <table>
+                <th colspan="2">Screen Stats:</th>
+                <tr>
+                    <td>
+                        Number matched:
+                    </td>
+                    <td id="number_matched">
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        Number unmatched:
+                    </td>
+                    <td id="number_unmatched">
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        Gene count:
+                    </td>
+                    <td id="gene_count">
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <br>
+        <input type="text" id="search" placeholder="Search for genes.." title="Type in a name" />
+
+        <div class="results flex-container">
+        </div>
+    </div>
+
+{% endblock %}
