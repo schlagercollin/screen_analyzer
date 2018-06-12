@@ -58,4 +58,27 @@ $( document ).ready( function() {
     </div>
     <button type="submit" id="embellish" class="btn btn-info">Embellish</button><span style="font-style: italic" id="analyze_status"></span>
     </form>
+<br><br>
+<div style="max-width: 800px">
+    <h4> About: </h4>
+    <p> The library embellish function (above) takes a screen library .csv file
+        and "embellishes" it with helpful gene information from NCBI's Gene
+        database (such as a gene description and summary, if available). There is
+        quite a lot of database information available to potentially parse. See:
+        <a target="_blank" href="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=gene&id=1&retmode=xml"> link </a>.
+    </p>
+    <p> Polling the NCBI library for thousands of genes can take some time. Submitting
+        a file here for embellishment starts the task in the background. After some time,
+        check back to see if a "filename_updated.csv" has been added. This is the
+        embellished file.
+    </p>
+    <p>
+        The time-limiting factor for the embellishment process (i.e. why it takes so long)
+        is the repeated poll of the database for each gene. Once polled for a particular gene, however,
+        all of this information is readily available and can be downloaded without much of
+        a time sacrifice.
+    </p>
+</div>
+
+
 {% endblock %}

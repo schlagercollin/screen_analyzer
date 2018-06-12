@@ -103,7 +103,7 @@ def analysis_submit():
             fischer = True
         else:
             fischer = False
-        config = {"Mageck": mageck, "Fischer": fischer}
+        config = {"Mageck": mageck, "Fischer": fischer, "Ratio": False}
 
         output = analyze_data(sorted_fastq, unsorted_fastq, output_file_name, guides, config)
         return jsonify(result=output)
@@ -119,10 +119,18 @@ def analysis_load():
             result_file = request.files['result_file']
             result_file = upload_file(result_file, "result")
 
+        result_file_dir = os.path.join(UPLOAD_FOLDER, "output", result_file)
         result_file_prefix = os.path.join(UPLOAD_FOLDER, "output", result_file, result_file)
+
+        try:
+            contents = os.listdir(result_file_dir)
+            date = time.strftime("%D %H:%M", time.localtime(int(os.path.getctime(result_file_dir))))
+        except:
+            contents = None
+            date = "Unable to fetch date information."
         gene_enrichment, guide_enrichment = load_from_dir(result_file_prefix)
         print("made it here")
-        return gene_enrichment
+        return jsonify(data=gene_enrichment, contents=contents, date=date)
 
 @app.route('/downloads/<path:dir_name>', methods=['GET', 'POST'])
 def download(dir_name):
@@ -291,6 +299,11 @@ def embellish():
     """main route for embellish"""
     data_files = check_data_files()
     return render_template("embellish.html", data_files=data_files)
+
+@app.route('/about')
+def about():
+    """main route for about"""
+    return render_template("about.html")
 
 
 
