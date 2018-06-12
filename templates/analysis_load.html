@@ -48,10 +48,11 @@ $( document ).ready( function() {
             url: "/analysis/load",
             type: 'POST',
             data: formData,
-            success: function(data) {
+            success: function(result) {
                 $("button#load_result").html("<i class='fas fa-chart-line'></i> Load Analysis");
-                console.log("HERE");
-                displayResult(data);
+                console.log(result.contents, result.date);
+                $("#stats_table").append("<tr><td>Analysis Time: </td><td>"+result.date+"</td></tr>");
+                displayResult(result.data);
                 //displayStats(data.sorted_stats, data.unsorted_stats)
             },
             processData: false,
@@ -74,7 +75,7 @@ $( document ).ready( function() {
         try {
             displayGeneBoxes(display_type);
         } catch(err) {
-            alert("This analysis can not be loaded for this file. "
+            alert("This analysis cannot be loaded for this file. "
             +"It's possible that this form of analysis was not performed on this dataset");
             console.log(err);
             $(this).val(old_display_type);
@@ -196,6 +197,7 @@ $( document ).ready( function() {
             hovermode:'closest'
         }
         $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
+        $(".stats").fadeIn(100);
         Plotly.newPlot('plotDiv1', data1, layout1); //create plot
 
     };
@@ -212,8 +214,11 @@ $( document ).ready( function() {
         dataframe = jd.dfFromObjArray(gene_enrichment);
         columns = dataframe.names().toArray();
 
+        var analyses = [];
+
         if (columns.indexOf("-log(pos|p-value)") > -1){
             display_type ="Mageck";
+            analyses.push(display_type);
             console.log("Mageck was performed.");
             dataframe = dataframe.sort("-log(pos|p-value)", ascending=true);
             var x_4 = dataframe.c("pos|lfc").toArray();
@@ -222,13 +227,14 @@ $( document ).ready( function() {
         }
         if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
             display_type = "Fischer Exact"
-
+            analyses.push(display_type);
             console.log("Fischer was performed.");
             dataframe = dataframe.sort("-log(FDR-Corrected P-Values)", ascending=true);
             var x_1 = dataframe.c("LFC").toArray();
             var genes_1 = dataframe.c("Target Gene Symbol").toArray();
             var y_1 = dataframe.c("-log(FDR-Corrected P-Values)").toArray();
         }
+        $("#stats_table").append("<tr><td>Analyses Performed: </td><td>"+analyses+"</td></tr>");
         $("#display_settings_select").val(display_type);
         dataframe = dataframe.sort("Sorted Counts", ascending=false);
         var y_2 = dataframe.c("Sorted Counts").toArray();
@@ -290,7 +296,10 @@ $( document ).ready( function() {
         var data3 = [ trace3 ];
         var data4 = [ trace4 ];
         var layout1 = {
-            title: "Gene Screen Results (Significance vs Log2(Fold Change))",
+            autosize: false,
+            width: 1300,
+            height: 600,
+            title: "Fischer Test – log(P-Value) vs Log2(Fold Change))",
             xaxis: {
                 autorange: true,
                 title: "log2(FoldChange)"
@@ -303,6 +312,9 @@ $( document ).ready( function() {
             hovermode:'closest'
         }
         var layout2 = {
+            autosize: false,
+            width: 1300,
+            height: 600,
             title: "Sorted Frequencies",
             xaxis: {
                 autorange: true,
@@ -316,6 +328,9 @@ $( document ).ready( function() {
             hovermode:'closest'
         }
         var layout3 = {
+            autosize: false,
+            width: 1300,
+            height: 600,
             title: "Unsorted Frequencies",
             xaxis: {
                 autorange: true,
@@ -329,7 +344,10 @@ $( document ).ready( function() {
             hovermode:'closest'
         }
         var layout4 = {
-            title: "Mageck",
+            autosize: false,
+            width: 1300,
+            height: 600,
+            title: "Mageck – log(P-Value) vs log2(FoldChange)",
             xaxis: {
                 autorange: true,
                 title: "log2(FoldChange)"
@@ -342,6 +360,7 @@ $( document ).ready( function() {
             hovermode:'closest'
         }
         $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
+        $(".stats").fadeIn(100);
 
         if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
             Plotly.newPlot('plotDiv1', data1, layout1); //create plot
@@ -380,8 +399,8 @@ $( document ).ready( function() {
 
                 $("div.results").append(
                     "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+"><p><b>"+genes_object[gene]["Target Gene Symbol"]+"</b></p>" +
-                    "<p style='font-size:0.5em'>"+log2foldchange+"</p>" +
-                    "<p style='font-size:0.5em'>"+p_value+"</p>" +
+                    "<p title='log2(FoldChange)' style='font-size:0.5em'>"+log2foldchange+"</p>" +
+                    "<p title='-log10(P-Value)' style='font-size:0.5em'>"+p_value+"</p>" +
                     "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
                     "<p class='details invisible' style='font-size:0.3em'>"+summary+"</p>" +
                     "</div>"
@@ -486,6 +505,7 @@ $( document ).ready( function() {
 });
 </script>
 <h1>Genetic Screen Anlaysis Pipeline</h1>
+<h3>&nbsp Perform a New Anaysis</h3>
     <form id="result_submit" method="POST" enctype="multipart/form-data">
         <div>
         <div class="form-group">
@@ -508,10 +528,13 @@ $( document ).ready( function() {
     </form>
     <br>
 
-
+    <div class="stats" style="display: none;">
+        <table id="stats_table">
+            <th colspan="2">Screen Info:</th>
+        </table>
+    </div>
+    <br>
     <!-- Begin plot stuff -->
-
-
     <div id="plotDiv1"></div>
     <div id="plotDiv4"></div>
     <div id="plotDiv2"></div>
@@ -519,12 +542,7 @@ $( document ).ready( function() {
 
     <div class="result_wrapper" style="display: none;">
 
-        <div class="stats">
-            <table id="stats_table">
-                <th colspan="4">Screen Stats:</th>
-                <tr><td>Statistic</td><td>Sorted</td><td>Unsorted</td></tr>
-            </table>
-        </div>
+
         <br>
         <div class="form-group">
         Display settings:

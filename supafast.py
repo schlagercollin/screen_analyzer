@@ -10,6 +10,7 @@ import time
 import math
 import threading
 import subprocess
+from pdb import set_trace as bp
 
 #idfile = sys.argv[1]
 
@@ -107,11 +108,9 @@ def create_mageck_input_file(dataframe):
     mageck_data_frame = dataframe[["sgRNA Target Sequence", "Target Gene Symbol", "Unsorted Counts", "Sorted Counts"]]
     return mageck_data_frame
 
-
-
 class parseThread(threading.Thread):
     def __init__(self, sorted_file, unsorted_file, output_prefix, guides_file, output_dir, control_file="Brie_Kinome_controls.txt"):
-        self.config_analysis = {"Mageck": True, "Fischer": False}
+        self.config_analysis = {"Mageck": True, "Fischer": False, "Ratio": False} # default values; set in controller.py
         self.sorted_file = sorted_file
         self.unsorted_file = unsorted_file
         self.output_prefix = output_prefix
@@ -153,19 +152,27 @@ class parseThread(threading.Thread):
             # Perform mageck Test
             self.perform_mageck_test()
             # Ensure that the mageck tests are sorted the same as the genes_result
+            # Is this supposed to be "genes"
             # Debug something here regarding index needing to be target gene symbol
             self.genes_result.set_index('Target Gene Symbol', drop=False, inplace=True)
             self.mageck_result_df.set_index('id', drop=False, inplace=True)
-            self.genes_result.drop("Non-Targeting-Control", inplace=True) #temporary!
+            #self.genes_result.drop("Non-Targeting-Control", inplace=True) #temporary!
             self.genes_result.sort_values(by=["Target Gene Symbol"], ascending=False, inplace=True)
             self.mageck_result_df.sort_values(by=["id"], ascending=False, inplace=True)
             self.genes_result["pos|lfc"] = self.mageck_result_df["pos|lfc"]
             self.genes_result["pos|p-value"] = self.mageck_result_df["pos|p-value"]
             self.genes_result["-log(pos|p-value)"] = self.mageck_result_df["-log(pos|p-value)"]
 
+        if self.config_analysis["Ratio"] == True:
+            print(self.guides_result.columns)
+            for_ratio_test = self.guides_result[['sgRNA Target Sequence', 'Target Gene Symbol', 'Sorted Counts', 'Unsorted Counts']].copy()
+            self.ratio_test(for_ratio_test)
+
+
 
         self.genes_result.sort_values(by=["LFC"], inplace=True)
         genes_path = self.output_prefix+"_gene_enrichment_calculation.csv"
+        print(genes_path)
         self.genes_result.to_csv(genes_path)
         self.guides_result.sort_values(by=["LFC"], ascending=False, inplace=True)
         guide_path = self.output_prefix+"_guide_enrichment_calculation.csv"
@@ -200,6 +207,78 @@ class parseThread(threading.Thread):
         #    self.status = str(line)
         #    print("MAGECK: ", str(line))
         # p.wait()
+
+    def ratio_test(self, df):
+        #df = df.rename(columns={'Sorted Counts': 'bot.Rep1.Reads', 'Unsorted Counts': 'top.Rep1.Reads'})
+
+        # Add 1 to reads
+        df['Sorted Counts'] = df['Sorted Counts']+1
+        df['Unsorted Counts'] = df['Unsorted Counts']+1
+
+        forQuant = df[['Sorted Counts','Unsorted Counts']].copy()
+        quantNorm = self.quantileNormalize(forQuant)
+        # rank_mean = forQuant.stack().groupby(forQuant.rank(method='first').stack().astype(int)).mean()
+        # quantNorm = forQuant.rank(method='min').stack().astype(int).map(rank_mean).unstack()
+
+
+        df['bot.Rep1.Quant'] = quantNorm.loc[:,'Unsorted Counts']
+        df['top.Rep1.Quant'] = quantNorm.loc[:,'Sorted Counts']
+
+        ratios = df[['sgRNA Target Sequence', 'Target Gene Symbol', 'bot.Rep1.Quant']].copy()
+        ratios.rename(columns = {'bot.Rep1.Quant':'Bot5.Geom.Mean'}, inplace=True)
+        ratios['Top5.Geom.Mean'] = df['top.Rep1.Quant']
+        ratios['ratio'] = ratios['Bot5.Geom.Mean'] / ratios['Top5.Geom.Mean']
+        ratios['log_ratio'] = ratios['ratio'].apply(np.log2)
+
+        ratios['mean_abundance'] = forQuant.apply(self.geomMean, axis=1)
+        ratios['log_MA'] = ratios['mean_abundance'].apply(np.log2)
+
+        ratios.sort_values(by=['log_MA'], ascending=True, inplace=True)
+        ratios['ZScore'] = np.zeros(len(ratios['log_MA']))
+
+        bins=3
+
+        guidesPerBin = math.ceil(len(ratios)/bins)
+        ratios.reset_index(inplace=True)
+
+        for i in range(bins):
+            start = (i)*guidesPerBin
+            end = start+guidesPerBin
+            if end > len(ratios):
+                end = len(ratios)
+            guides = ratios[start:end]
+            guides['ZScore'] = stats.zscore(guides.loc[:,'log_ratio'])
+            # ratios['ZScore'][start:end] = guides.loc[:,'ZScore']
+            ratios.loc[start:end,'ZScore'] = guides.loc[:,'ZScore']
+
+        print("Collapsing to Gene Level...")
+        aggregation_rule = {c : "mean" if (c == "ZScore" or c == "log_ratio") else "first" for c in ratios.columns}
+        aggregation_rule.pop("Target Gene Symbol")
+        gene_level_df = ratios.groupby("Target Gene Symbol", as_index=False).agg(aggregation_rule)
+        gene_level_df.sort_values(by=['ZScore'], ascending=False, inplace=True)
+        ratios_path = self.output_prefix+"_ratio_test.csv"
+        gene_level_df.to_csv(ratios_path)
+        return ratios
+
+    def geomMean(self, x):
+        product = np.prod(x)
+        numElem = len(x)
+        result = product**(1/numElem)
+        return result
+
+    def quantileNormalize(self, df_input):
+        df = df_input.copy()
+        #compute rank
+        dic = {}
+        for col in df:
+            dic.update({col : sorted(df[col])})
+        sorted_df = pd.DataFrame(dic)
+        rank = sorted_df.mean(axis = 1).tolist()
+        #sort
+        for col in df:
+            t = np.searchsorted(np.sort(df[col]), df[col])
+            df[col] = [rank[i] for i in t]
+        return df
 
 def main():
     start = time.time()
