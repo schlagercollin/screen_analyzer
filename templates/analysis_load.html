@@ -3,7 +3,6 @@
 <script type="text/javascript">
 var dataframe = "Placeholder";
 var display_type = "Placeholder";
-var progress_counter = 0;
 $( document ).ready( function() {
     $("select.file_select").change(function(){
         var file_upload_field = $(this).siblings("input.file_upload");
@@ -11,7 +10,6 @@ $( document ).ready( function() {
             $(this).animate({
                 'max-width': 17
             }, 200, function() {
-                console.log("Test");
                 file_upload_field.fadeIn(200);
             });
         } else {
@@ -26,9 +24,6 @@ $( document ).ready( function() {
     $("form#data_submit").submit(function(e) {
         //Submit data analysis request (controller.analysis_submit())
         e.preventDefault();
-        //$("#progress_bar").removeClass("invisible");
-        //$("#progress_bar").parent().removeClass("invisible");
-        $("#progress_bar").width("50%");
         $("button#analyze").text("Analyzing...");
         var formData = new FormData(this);
         $.ajax({
@@ -37,15 +32,8 @@ $( document ).ready( function() {
             data: formData,
             success: function(data) {
                 console.log("Success. Checking status.");
-                progress_counter = 0;
                 check_status();
-
                 //displayResult(data.result); //display the data
-            },
-            error: function(data) {
-                console.log("Error submitting.");
-                $("button#analyze").html('<i class="fas fa-upload"></i> Submit a New Analysis"');
-                alert("Error: Output name taken. Please try another.");
             },
             processData: false,
             contentType: false
@@ -54,16 +42,16 @@ $( document ).ready( function() {
     $("form#result_submit").submit(function(e) {
         //Submit load data request (controller.analysis_load())
         e.preventDefault();
-        $("button#load_result").text("Loading...");
+        $("button#load_result").html("<img width=20 height=20 src='../static/img/working.gif' /> Loading...");
         var formData = new FormData(this);
         $.ajax({
             url: "/analysis/load",
             type: 'POST',
             data: formData,
             success: function(result) {
-                $("button#load_result").text("Load");
-                console.log("HERE");
+                $("button#load_result").html("<i class='fas fa-chart-line'></i> Load Analysis");
                 console.log(result.contents, result.date);
+                $("#stats_table").append("<tr><td>Analysis Time: </td><td>"+result.date+"</td></tr>");
                 displayResult(result.data);
                 //displayStats(data.sorted_stats, data.unsorted_stats)
             },
@@ -80,8 +68,21 @@ $( document ).ready( function() {
         $("#download_result").text("Download");
     });
 
-    function check_status(){
+    $("#display_settings_select").change( function() {
+        old_display_type = display_type
+        display_type = $(this).val();
+        console.log(display_type);
+        try {
+            displayGeneBoxes(display_type);
+        } catch(err) {
+            alert("This analysis cannot be loaded for this file. "
+            +"It's possible that this form of analysis was not performed on this dataset");
+            console.log(err);
+            $(this).val(old_display_type);
+        }
+    });
 
+    function check_status(){
         setTimeout(function(){
             console.log("Poll for status: ");
             $.ajax({
@@ -91,27 +92,20 @@ $( document ).ready( function() {
                     $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" />'+data.status); //display progress
                     console.log(data.status);
                     if (data.status != "Analysis Complete") {
-                        console.log(progress_counter);
-                        $("#progress_bar").html(progress_counter.toString()+"%");
-                        $("#progress_bar").width(progress_counter.toString()+"%");
-                        progress_counter = progress_counter+4;
                         check_status()
-
                     } else {
-                        $("button#analyze").html('<i class="fas fa-upload"></i> Submit a New Analysis"');
+                        $("button#analyze").text("Analyze");
 						$("span#analyze_status").text("");
                         alert("Analysis complete!");
                         var formData = new FormData();
-                        formData.append('result_file', data.output_dir);
+                        formData.append('result_file', data.result);
                         $.ajax({
                             url: "/analysis/load",
                             type: 'POST',
                             data: formData,
-                            success: function(result) {
-                                //console.log(data);
-                                $("#progress_bar").addClass("invisible");
-                                $("#progress_bar").parent().addClass("invisible");
-                                displayResult(result.data); //display the data
+                            success: function(data) {
+                                console.log(data);
+                                displayResult(data); //display the data
                                 //displayStats(data.sorted_stats, data.unsorted_stats)
                             },
                             processData: false,
@@ -131,20 +125,6 @@ $( document ).ready( function() {
             $("#stats_table").append("<tr><td>"+sorted_stats[stat][0]+"</td><td>"+sorted_stats[stat][1]+"</td><td>"+unsorted_stats[stat][1]+"</td></tr>");
         }
     }
-
-    $("#display_settings_select").change( function() {
-        old_display_type = display_type
-        display_type = $(this).val();
-        console.log(display_type);
-        try {
-            displayGeneBoxes(display_type);
-        } catch(err) {
-            alert("This analysis cannot be loaded for this file. "
-            +"It's possible that this form of analysis was not performed on this dataset");
-            console.log(err);
-            $(this).val(old_display_type);
-        }
-    });
 
     function displayMageck(mageck_results) {
         //console.log(mageck_results);
@@ -182,7 +162,7 @@ $( document ).ready( function() {
             //sorted_frequencies.push(sorted_freq);
             genes.push(geneName);
             counter += 1;
-            if (counter >= 1000){
+            if (counter >= 5000){
                 // only parse first 1000 genes (speed optimization)
                 break;
             }
@@ -214,12 +194,10 @@ $( document ).ready( function() {
                 autorange: true,
                 title: "-log(FDR)"
             },
-            autosize: false,
-            width: 500,
-            height: 500,
             hovermode:'closest'
         }
         $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
+        $(".stats").fadeIn(100);
         Plotly.newPlot('plotDiv1', data1, layout1); //create plot
 
     };
@@ -236,8 +214,11 @@ $( document ).ready( function() {
         dataframe = jd.dfFromObjArray(gene_enrichment);
         columns = dataframe.names().toArray();
 
+        var analyses = [];
+
         if (columns.indexOf("-log(pos|p-value)") > -1){
             display_type ="Mageck";
+            analyses.push(display_type);
             console.log("Mageck was performed.");
             dataframe = dataframe.sort("-log(pos|p-value)", ascending=true);
             var x_4 = dataframe.c("pos|lfc").toArray();
@@ -246,13 +227,14 @@ $( document ).ready( function() {
         }
         if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
             display_type = "Fischer Exact"
-
+            analyses.push(display_type);
             console.log("Fischer was performed.");
             dataframe = dataframe.sort("-log(FDR-Corrected P-Values)", ascending=true);
             var x_1 = dataframe.c("LFC").toArray();
             var genes_1 = dataframe.c("Target Gene Symbol").toArray();
             var y_1 = dataframe.c("-log(FDR-Corrected P-Values)").toArray();
         }
+        $("#stats_table").append("<tr><td>Analyses Performed: </td><td>"+analyses+"</td></tr>");
         $("#display_settings_select").val(display_type);
         dataframe = dataframe.sort("Sorted Counts", ascending=false);
         var y_2 = dataframe.c("Sorted Counts").toArray();
@@ -378,6 +360,7 @@ $( document ).ready( function() {
             hovermode:'closest'
         }
         $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
+        $(".stats").fadeIn(100);
 
         if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
             Plotly.newPlot('plotDiv1', data1, layout1); //create plot
@@ -415,7 +398,8 @@ $( document ).ready( function() {
                 }
 
                 $("div.results").append(
-                    "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+"><p><b>"+genes_object[gene]["Target Gene Symbol"]+"</b></p>" +
+                    "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+">"+
+                    "<p><b><a href='https://www.ncbi.nlm.nih.gov/gene/"+genes_object[gene]['Target Gene ID']+"'>"+genes_object[gene]["Target Gene Symbol"]+"</a></b></p>" +
                     "<p title='log2(FoldChange)' style='font-size:0.5em'>"+log2foldchange+"</p>" +
                     "<p title='-log10(P-Value)' style='font-size:0.5em'>"+p_value+"</p>" +
                     "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
@@ -450,9 +434,10 @@ $( document ).ready( function() {
                 }
 
                 $("div.results").append(
-                    "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+"><p><b>"+genes_object[gene]["Target Gene Symbol"]+"</b></p>" +
-                    "<p style='font-size:0.5em'>"+log2foldchange+"</p>" +
-                    "<p style='font-size:0.5em'>"+p_value+"</p>" +
+                    "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+">"+
+                    "<p><b><a style='text-decoration: none !important; color: inherit' target='_blank' href='https://www.ncbi.nlm.nih.gov/gene/"+genes_object[gene]['Target Gene ID']+"'>"+genes_object[gene]["Target Gene Symbol"]+"</a></b></p>" +
+                    "<p title='log2(FoldChange)' style='font-size:0.5em'>"+log2foldchange+"</p>" +
+                    "<p title='-log10(P-Value)' style='font-size:0.5em'>"+p_value+"</p>" +
                     "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
                     "<p class='details invisible' style='font-size:0.3em'>"+summary+"</p>" +
                     "</div>"
@@ -467,7 +452,6 @@ $( document ).ready( function() {
         };
 
     }
-
     $("#search").on("keyup", function(){
         //Provides search functionality for genes (filter on keyup)
         var input, filter, container, li, a, i;
@@ -524,12 +508,12 @@ $( document ).ready( function() {
 </script>
 <h1>Genetic Screen Anlaysis Pipeline</h1>
 <h3>&nbsp Perform a New Anaysis</h3>
-    <form id="data_submit" method="post" enctype="multipart/form-data">
-    <div>
+    <form id="result_submit" method="POST" enctype="multipart/form-data">
+        <div>
         <div class="form-group">
-            Sorted File:
-            <select name="sorted" id="qFast_file_select" class="file_select form-control">
-                {% for item in data_files['fastq'] %}
+            Output file:
+            <select name="result_file" id="result_file_select" class="file_select form-control">
+                {% for item in data_files['output'] %}
                     <option>
                         {{ item.capitalize() }}
                     </option>
@@ -538,94 +522,41 @@ $( document ).ready( function() {
                         Upload your own
                     </option>
             </select>
-            <input name="sorted" id="qFast_file_upload" style="display: none;" class="file_upload form-control file_select" type="file"/>
-
-        </div>
-        <div class="form-group">
-            Unsorted File:
-            <select name="unsorted" id="qFast_file_select" class="file_select form-control">
-                {% for item in data_files['fastq'] %}
-                    <option>
-                        {{ item.capitalize() }}
-                    </option>
-                {% endfor %}
-                    <option>
-                        Upload your own
-                    </option>
-            </select>
-            <input name="unsorted" id="qFast_file_upload" style="display: none;" class="form_control file_select file_upload" type="file"/>
-        </div>
-        <div class="form-group">
-        Guides File:
-            <select name="guides" id="library_file_select" class="file_select form-control">
-                {% for item in data_files['library'] %}
-                    <option>
-                        {{ item.capitalize() }}
-                    </option>
-                {% endfor %}
-                    <option>
-                        Upload your own
-                    </option>
-            </select>
-            <input name="guides" id="library_file_upload" style="display: none;" class="file_upload file_select form-control" type="file" />
-        </div>
-        <div class="form-group">
-            Output File Name:
-                <input name="output" placeholder="Enter an output name here" id="file_name_input" class="file_select form-control" />
-        </div>
-    Analysis Type(s):
-    <div class="form-group">
-    <div class="form-control file_select">
-            <label class="data_option checkbox-inline">
-               <input type="checkbox" name="Mageck" value="Mageck">Mageck</input>
-             </label>
-             <label class="data_option checkbox-inline">
-               <input type="checkbox" name="Fischer" value="Fischer">Fischer</input>
-             </label>
-             <label class="data_option checkbox-inline">
-               <input disabled type="checkbox" name="Ratio" value="Ratio">Ratio (coming soon)</input>
-             </label>
+            <input name="result_file" id="result_file_upload" style="display: none;" class="file_upload" type="file"/>
         </div>
     </div>
-
-    </div>
-
-<!--
-    <div class="btn-group" data-toggle="buttons">
-      <label class="btn btn-primary active">
-        <input type="checkbox" autocomplete="off"> Checkbox 1
-      </label>
-      <label class="btn btn-primary">
-        <input type="checkbox" autocomplete="off"> Checkbox 2
-      </label>
-      <label class="btn btn-primary">
-        <input type="checkbox" autocomplete="off"> Checkbox 3
-      </label>
-    </div>
--->
-    <button type="submit" id="analyze" class="btn btn-info"><i class="fas fa-upload"></i> Submit a New Analysis</button><span style="font-style: italic" id="analyze_status"></span>
-
-    <div class="invisible progress" style="max-width: 500px; margin: 5px;">
-          <div id="progress_bar" class="invisible progress-bar progress-bar-striped progress-bar-animated" role="progress-bar"
-          aria-valuenow="40" aria-valuemin="0" aria-valuemax="100" style="width:40%">
-            40%
-          </div>
-    </div>
-
+    <button type="submit" id="load_result" class="btn btn-info"><i class="fas fa-chart-line"></i> Load Analysis</button>
+    <button id="download_result" class="btn btn-info"><i class="fas fa-download"></i> Download .zip</button>
     </form>
-    <div id="plotDiv4"></div>
+    <br>
+
+    <div class="stats" style="display: none;">
+        <table id="stats_table">
+            <th colspan="2">Screen Info:</th>
+        </table>
+    </div>
+    <br>
+    <!-- Begin plot stuff -->
     <div id="plotDiv1"></div>
+    <div id="plotDiv4"></div>
     <div id="plotDiv2"></div>
     <div id="plotDiv3"></div>
 
     <div class="result_wrapper" style="display: none;">
-        <div class="stats">
-            <table id="stats_table">
-                <th colspan="4">Screen Stats:</th>
-                <tr><td>Statistic</td><td>Sorted</td><td>Unsorted</td></tr>
-            </table>
-        </div>
+
+
         <br>
+        <div class="form-group">
+        Display settings:
+            <select name="display_setting" id="display_settings_select" class="file_select form-control">
+                    <option>
+                        Mageck
+                    </option>
+                    <option>
+                        Fischer Exact
+                    </option>
+            </select>
+        </div>
         <input type="text" id="search" placeholder="Search for genes.." title="Type in a name" />
 
         <div class="results flex-container">
