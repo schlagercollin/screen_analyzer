@@ -398,7 +398,8 @@ $( document ).ready( function() {
                 }
 
                 $("div.results").append(
-                    "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+"><p><b>"+genes_object[gene]["Target Gene Symbol"]+"</b></p>" +
+                    "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+">"+
+                    "<p><b><a href='https://www.ncbi.nlm.nih.gov/gene/"+genes_object[gene]['Target Gene ID']+"'>"+genes_object[gene]["Target Gene Symbol"]+"</a></b></p>" +
                     "<p title='log2(FoldChange)' style='font-size:0.5em'>"+log2foldchange+"</p>" +
                     "<p title='-log10(P-Value)' style='font-size:0.5em'>"+p_value+"</p>" +
                     "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
@@ -433,9 +434,10 @@ $( document ).ready( function() {
                 }
 
                 $("div.results").append(
-                    "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+"><p><b>"+genes_object[gene]["Target Gene Symbol"]+"</b></p>" +
-                    "<p style='font-size:0.5em'>"+log2foldchange+"</p>" +
-                    "<p style='font-size:0.5em'>"+p_value+"</p>" +
+                    "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+">"+
+                    "<p><b><a style='text-decoration: none !important; color: inherit' target='_blank' href='https://www.ncbi.nlm.nih.gov/gene/"+genes_object[gene]['Target Gene ID']+"'>"+genes_object[gene]["Target Gene Symbol"]+"</a></b></p>" +
+                    "<p title='log2(FoldChange)' style='font-size:0.5em'>"+log2foldchange+"</p>" +
+                    "<p title='-log10(P-Value)' style='font-size:0.5em'>"+p_value+"</p>" +
                     "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
                     "<p class='details invisible' style='font-size:0.3em'>"+summary+"</p>" +
                     "</div>"
