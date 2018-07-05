@@ -103,7 +103,13 @@ def analysis_submit():
             fischer = True
         else:
             fischer = False
-        config = {"Mageck": mageck, "Fischer": fischer, "Ratio": False}
+
+        if "Ratio" in request.values:
+            print("Ratio enabled.")
+            ratio = True
+        else:
+            ratio = False
+        config = {"Mageck": mageck, "Fischer": fischer, "Ratio": ratio}
 
         output = analyze_data(sorted_fastq, unsorted_fastq, output_file_name, guides, config)
         return jsonify(result=output)

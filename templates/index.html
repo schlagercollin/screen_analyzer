@@ -36,6 +36,7 @@ $( document ).ready( function() {
             type: 'POST',
             data: formData,
             success: function(data) {
+                console.log(data);
                 console.log("Success. Checking status.");
                 progress_counter = 0;
                 check_status();
@@ -527,7 +528,7 @@ $( document ).ready( function() {
     <form id="data_submit" method="post" enctype="multipart/form-data">
     <div>
         <div class="form-group">
-            Sorted File:
+            Top Sorted File:
             <select name="sorted" id="qFast_file_select" class="file_select form-control">
                 {% for item in data_files['fastq'] %}
                     <option>
@@ -540,6 +541,20 @@ $( document ).ready( function() {
             </select>
             <input name="sorted" id="qFast_file_upload" style="display: none;" class="file_upload form-control file_select" type="file"/>
 
+        </div>
+        <div class="form-group">
+            Bottom Sorted File:
+            <select name="unsorted" id="qFast_file_select" class="file_select form-control">
+                {% for item in data_files['fastq'] %}
+                    <option>
+                        {{ item.capitalize() }}
+                    </option>
+                {% endfor %}
+                    <option>
+                        Upload your own
+                    </option>
+            </select>
+            <input name="unsorted" id="qFast_file_upload" style="display: none;" class="form_control file_select file_upload" type="file"/>
         </div>
         <div class="form-group">
             Unsorted File:
@@ -555,6 +570,7 @@ $( document ).ready( function() {
             </select>
             <input name="unsorted" id="qFast_file_upload" style="display: none;" class="form_control file_select file_upload" type="file"/>
         </div>
+
         <div class="form-group">
         Guides File:
             <select name="guides" id="library_file_select" class="file_select form-control">
@@ -583,7 +599,7 @@ $( document ).ready( function() {
                <input type="checkbox" name="Fischer" value="Fischer">Fischer</input>
              </label>
              <label class="data_option checkbox-inline">
-               <input disabled type="checkbox" name="Ratio" value="Ratio">Ratio (coming soon)</input>
+               <input type="checkbox" name="Ratio" value="Ratio">Ratio</input>
              </label>
         </div>
     </div>
