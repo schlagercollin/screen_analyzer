@@ -529,7 +529,7 @@ $( document ).ready( function() {
     <div>
         <div class="form-group">
             Top Sorted File:
-            <select name="sorted" id="qFast_file_select" class="file_select form-control">
+            <select name="top_sorted" id="qFast_file_select" class="file_select form-control">
                 {% for item in data_files['fastq'] %}
                     <option>
                         {{ item.capitalize() }}
@@ -539,12 +539,12 @@ $( document ).ready( function() {
                         Upload your own
                     </option>
             </select>
-            <input name="sorted" id="qFast_file_upload" style="display: none;" class="file_upload form-control file_select" type="file"/>
+            <input name="top_sorted" id="qFast_file_upload" style="display: none;" class="file_upload form-control file_select" type="file"/>
 
         </div>
         <div class="form-group">
             Bottom Sorted File:
-            <select name="unsorted" id="qFast_file_select" class="file_select form-control">
+            <select name="bot_sorted" id="qFast_file_select" class="file_select form-control">
                 {% for item in data_files['fastq'] %}
                     <option>
                         {{ item.capitalize() }}
@@ -554,7 +554,7 @@ $( document ).ready( function() {
                         Upload your own
                     </option>
             </select>
-            <input name="unsorted" id="qFast_file_upload" style="display: none;" class="form_control file_select file_upload" type="file"/>
+            <input name="bot_sorted" id="qFast_file_upload" style="display: none;" class="form_control file_select file_upload" type="file"/>
         </div>
         <div class="form-group">
             Unsorted File:
@@ -605,20 +605,6 @@ $( document ).ready( function() {
     </div>
 
     </div>
-
-<!--
-    <div class="btn-group" data-toggle="buttons">
-      <label class="btn btn-primary active">
-        <input type="checkbox" autocomplete="off"> Checkbox 1
-      </label>
-      <label class="btn btn-primary">
-        <input type="checkbox" autocomplete="off"> Checkbox 2
-      </label>
-      <label class="btn btn-primary">
-        <input type="checkbox" autocomplete="off"> Checkbox 3
-      </label>
-    </div>
--->
     <button type="submit" id="analyze" class="btn btn-info"><i class="fas fa-upload"></i> Submit a New Analysis</button><span style="font-style: italic" id="analyze_status"></span>
 
     <div class="invisible progress" style="max-width: 500px; margin: 5px;">

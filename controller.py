@@ -74,10 +74,15 @@ def analysis_submit():
     returns json object for display (see index.html)"""
     if request.method == 'POST':
 
-        sorted_fastq = request.values['sorted']
-        if sorted_fastq == "Upload your own":
-            sorted_fastq = request.files['sorted']
-            sorted_fastq = upload_file(sorted_fastq, "fastq")
+        top_sorted_pop = request.values['top_sorted']
+        if top_sorted_pop == "Upload your own":
+            top_sorted_pop = request.files['top_sorted']
+            top_sorted_pop = upload_file(top_sorted_pop, "fastq")
+
+        bot_sorted_pop = request.values['bot_sorted']
+        if bot_sorted_pop == "Upload your own":
+            bot_sorted_pop = request.files['bot_sorted']
+            bot_sorted_pop = upload_file(bot_sorted_pop, "fastq")
 
         unsorted_fastq = request.values['unsorted']
         if unsorted_fastq == "Upload your own":
@@ -109,9 +114,11 @@ def analysis_submit():
             ratio = True
         else:
             ratio = False
-        config = {"Mageck": mageck, "Fischer": fischer, "Ratio": ratio}
 
-        output = analyze_data(sorted_fastq, unsorted_fastq, output_file_name, guides, config)
+        config = {"Mageck": mageck, "Fischer": fischer, "Ratio": ratio}
+        print(config)
+
+        output = analyze_data(top_sorted_pop, bot_sorted_pop, unsorted_fastq, output_file_name, guides, config)
         return jsonify(result=output)
 
 @app.route('/analysis/load', methods=['POST'])
@@ -196,7 +203,7 @@ def analysis_get_result():
 global myThread
 myThread = None
 
-def analyze_data(sorted, unsorted, output, guides, config, control="Brie_Kinome_controls.txt"):
+def analyze_data(top_sorted, bot_sorted, unsorted, output, guides, config, control="Brie_Kinome_controls.txt"):
     global myThread
     """wrapper for parse_qfast function. handles some path information"""
     print(UPLOAD_FOLDER, sorted, unsorted, output, guides)
@@ -206,13 +213,13 @@ def analyze_data(sorted, unsorted, output, guides, config, control="Brie_Kinome_
     output = os.path.join(UPLOAD_FOLDER, 'output', output, output) # Set output path to new dir
 
     guides = os.path.join(UPLOAD_FOLDER, 'library', guides) # Get input file paths
-    sorted = os.path.join(UPLOAD_FOLDER,'fastq', sorted)
+    top_sorted = os.path.join(UPLOAD_FOLDER,'fastq', top_sorted)
+    bot_sorted = os.path.join(UPLOAD_FOLDER, 'fastq', bot_sorted)
     unsorted = os.path.join(UPLOAD_FOLDER,'fastq', unsorted)
     control = os.path.join(UPLOAD_FOLDER, control)
     print("About to start the thread...")
 
-    myThread = supafast.parseThread(sorted, unsorted, output, guides, output_dir, control_file="Brie_Kinome_controls.txt")
-    print(config)
+    myThread = supafast.parseThread(top_sorted, bot_sorted, unsorted, output, guides, output_dir, control_file="Brie_Kinome_controls.txt")
     myThread.config_analysis = config
     myThread.start()
 
@@ -229,38 +236,6 @@ def get_result():
     global myThread
     myResult = myThread.output
     return myResult
-
-@app.route('/compare')
-def compare():
-    data_files = check_data_files()
-    return render_template("compare.html", data_files=data_files)
-
-@app.route('/compare/submit', methods=['POST'])
-def compare_submit():
-    """on analysis click: fetches stashed files or uploads and uses the new one
-    returns json object for display (see index.html)"""
-    if request.method == 'POST':
-        unsorted_pop = request.values['unsorted_pop']
-        if unsorted_pop == "Upload your own":
-            unsorted_pop = request.files['unsorted_pop']
-            unsorted_pop = upload_file(unsorted_pop, "fastq")
-        sorted_pop = request.values['sorted_pop']
-        if sorted_pop == "Upload your own":
-            sorted_pop = request.files['sorted_pop']
-            sorted_pop = upload_file(sorted_pop, "fastq")
-        output_file = request.values['output_file_name']
-        if output_file == '':
-            output_file = "comparison"+ str(int(time.time())) + ".json"
-        output = compare_data(unsorted_pop, sorted_pop, output_file)
-        return jsonify(result=output)
-
-def compare_data(unsorted_pop, sorted_pop, output_file):
-    """wrapper for compare function. handles some path information"""
-    output_file = os.path.join(UPLOAD_FOLDER, "comparisons", output_file)
-    unsorted_pop = os.path.join(UPLOAD_FOLDER, 'output', unsorted_pop)
-    sorted_pop = os.path.join(UPLOAD_FOLDER,'output', sorted_pop)
-    output = screen_analyzer.compare(unsorted_pop, sorted_pop, output_file)
-    return output
 
 @app.route('/')
 @app.route('/index')

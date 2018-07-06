@@ -58,9 +58,9 @@ def parse_qfast(qfast_file, library_file):
 def compute_lfc(dataframe):
     print("Computing LFC...")
     log2 = lambda x: math.log2(x)
-    sortedTotMatches = int(dataframe["Sorted Counts"].sum())
+    sortedTotMatches = int(dataframe["Top Sorted Counts"].sum())
     unsortedTotMatches = int(dataframe["Unsorted Counts"].sum())
-    normalized_sorted = (dataframe["Sorted Counts"]+1)/sortedTotMatches
+    normalized_sorted = (dataframe["Top Sorted Counts"]+1)/sortedTotMatches
     normalized_unsorted = (dataframe["Unsorted Counts"]+1)/unsortedTotMatches
     foldchange = normalized_sorted/normalized_unsorted
     dataframe["LFC"] = foldchange.apply(log2)
@@ -68,12 +68,12 @@ def compute_lfc(dataframe):
     return dataframe
 
 def fischer_function(row, sortedTot = None, unsortedTot = None):
-    oddsratio, pValue = stats.fisher_exact([[row["Unsorted Counts"], unsortedTot], [row["Sorted Counts"], sortedTot]]);
+    oddsratio, pValue = stats.fisher_exact([[row["Unsorted Counts"], unsortedTot], [row["Top Sorted Counts"], sortedTot]]);
     return pValue
 
 def compute_fischer(dataframe):
     print("Computing Fischer...")
-    sortedTotMatches = int(dataframe["Sorted Counts"].sum())
+    sortedTotMatches = int(dataframe["Top Sorted Counts"].sum())
     unsortedTotMatches = int(dataframe["Unsorted Counts"].sum())
     dataframe["Fischer P-Values"] = dataframe.apply(fischer_function, axis=1, sortedTot=sortedTotMatches, unsortedTot=unsortedTotMatches)
     adjEnrichPVals = compTool.multipletests(list(dataframe["Fischer P-Values"]), method='fdr_bh', is_sorted=False)[1]
@@ -87,16 +87,21 @@ def perform_analysis(sorted_fastq, unsorted_fastq, library_file):
     print("Beginning parsing...")
     library_df = create_dataframe(library_file)
     sorted_counts_dict = parse_qfast(sorted_fastq, library_file)
-    add_df_column(library_df, sorted_counts_dict, "Sorted Counts")
+    add_df_column(library_df, sorted_counts_dict, "Top Sorted Counts")
     unsorted_counts_dict = parse_qfast(unsorted_fastq, library_file)
     add_df_column(library_df, unsorted_counts_dict, "Unsorted Counts")
     return library_df
 
 def collapse_to_gene_level(dataframe):
+    """Sums up top sorted counts, bot sorted counts, and unsorted counts based on Target Gene Symbol
+    All other stats should be the same across a given Target Gene Symbol, so the 'first' value is preserved
+    as opposed to a sum (see aggregation_rule)"""
+
     print("Collapsing to Gene Level...")
-    aggregation_rule = {c : "sum" if (c == "Sorted Counts" or c == "Unsorted Counts") else "first" for c in dataframe.columns}
+    aggregation_rule = {c : "sum" if (c == "Top Sorted Counts" or c == "Bot Sorted Counts" or c == "Unsorted Counts") else "first" for c in dataframe.columns}
     aggregation_rule.pop("Target Gene Symbol")
     print(aggregation_rule)
+    dataframe.sort_values(by=["sgRNA Target Sequence"], inplace=True)
     gene_level_df = dataframe.groupby("Target Gene Symbol", as_index=False).agg(aggregation_rule)
     gene_level_df.to_csv("gene_level_output.csv")
     print("Done.")
@@ -105,13 +110,14 @@ def collapse_to_gene_level(dataframe):
 def create_mageck_input_file(dataframe):
     """ Mageck input format is tab-delimited file """
     """ sgRNA   \tGene  \tControl1 (unsorted)  \tSorted1   \n"""
-    mageck_data_frame = dataframe[["sgRNA Target Sequence", "Target Gene Symbol", "Unsorted Counts", "Sorted Counts"]]
+    mageck_data_frame = dataframe[["sgRNA Target Sequence", "Target Gene Symbol", "Unsorted Counts", "Top Sorted Counts"]]
     return mageck_data_frame
 
 class parseThread(threading.Thread):
-    def __init__(self, sorted_file, unsorted_file, output_prefix, guides_file, output_dir, control_file="Brie_Kinome_controls.txt"):
+    def __init__(self, top_sorted_file, bot_sorted_file, unsorted_file, output_prefix, guides_file, output_dir, control_file="Brie_Kinome_controls.txt"):
         self.config_analysis = {"Mageck": True, "Fischer": False, "Ratio": False} # default values; set in controller.py
-        self.sorted_file = sorted_file
+        self.top_sorted_file = top_sorted_file
+        self.bot_sorted_file = bot_sorted_file
         self.unsorted_file = unsorted_file
         self.output_prefix = output_prefix
         self.output_dir = output_dir
@@ -132,20 +138,36 @@ class parseThread(threading.Thread):
         self.status = "Collapsing to Gene Level..."
         self.genes_result = collapse_to_gene_level(self.guides_result)
 
-        self.status = "Computing LFC..."
-        compute_lfc(self.guides_result)
-        compute_lfc(self.genes_result)
-
         if self.config_analysis["Fischer"] == True:
+
+            self.fischer_guides_result = self.guides_result.copy()
+            self.fischer_genes_result = self.genes_result.copy()
+
+            self.status = "Computing LFC..."
+            compute_lfc(self.fischer_guides_result)
+            compute_lfc(self.fischer_genes_result)
+
             self.status = "Computing fischer for guides..."
-            compute_fischer(self.guides_result)
+            compute_fischer(self.fischer_guides_result)
             self.status = "Computing fischer for genes..."
-            compute_fischer(self.genes_result)
+            compute_fischer(self.fischer_genes_result)
+
+            self.fischer_genes_result.sort_values(by=["-log(FDR-Corrected P-Values)"], ascending=False, inplace=True)
+            genes_path = self.output_prefix+"_fischer_gene.csv"
+            print(genes_path)
+            self.fischer_genes_result.to_csv(genes_path)
+            self.fischer_guides_result.sort_values(by=["-log(FDR-Corrected P-Values)"], ascending=False, inplace=True)
+            guide_path = self.output_prefix+"_fischer_guide.csv"
+            self.fischer_guides_result.to_csv(guide_path)
 
         if self.config_analysis["Mageck"] == True:
+
+            self.mageck_guides_result = self.guides_result.copy()
+            self.mageck_genes_result = self.genes_result.copy()
+
             # Create mageck input file
             self.status = "Creating Mageck input file..."
-            mageck_data_frame = create_mageck_input_file(self.guides_result.sort_values(by=["sgRNA Target Sequence"]))
+            mageck_data_frame = create_mageck_input_file(self.mageck_guides_result.sort_values(by=["sgRNA Target Sequence"]))
             self.mageck_path = self.output_prefix+"_mageck_input_file.txt"
             mageck_data_frame.to_csv(self.mageck_path, sep="\t", index=False)
 
@@ -154,27 +176,32 @@ class parseThread(threading.Thread):
             # Ensure that the mageck tests are sorted the same as the genes_result
             # Is this supposed to be "genes"
             # Debug something here regarding index needing to be target gene symbol
-            self.genes_result.set_index('Target Gene Symbol', drop=False, inplace=True)
+            self.mageck_genes_result.set_index('Target Gene Symbol', drop=False, inplace=True)
             self.mageck_result_df.set_index('id', drop=False, inplace=True)
             #self.genes_result.drop("Non-Targeting-Control", inplace=True) #temporary!
-            self.genes_result.sort_values(by=["Target Gene Symbol"], ascending=False, inplace=True)
+            self.mageck_genes_result.sort_values(by=["Target Gene Symbol"], ascending=False, inplace=True)
             self.mageck_result_df.sort_values(by=["id"], ascending=False, inplace=True)
-            self.genes_result["pos|lfc"] = self.mageck_result_df["pos|lfc"]
-            self.genes_result["pos|p-value"] = self.mageck_result_df["pos|p-value"]
-            self.genes_result["-log(pos|p-value)"] = self.mageck_result_df["-log(pos|p-value)"]
+            self.mageck_genes_result["pos|lfc"] = self.mageck_result_df["pos|lfc"]
+            self.mageck_genes_result["pos|p-value"] = self.mageck_result_df["pos|p-value"]
+            self.mageck_genes_result["-log(pos|p-value)"] = self.mageck_result_df["-log(pos|p-value)"]
+
+            self.mageck_genes_result.sort_values(by=["-log(pos|p-value)"], ascending=False, inplace=True)
+            genes_path = self.output_prefix+"_mageck_gene.csv"
+            print(genes_path)
+            self.mageck_genes_result.to_csv(genes_path)
 
         if self.config_analysis["Ratio"] == True:
             print(self.guides_result.columns)
-            for_ratio_test = self.guides_result[['sgRNA Target Sequence', 'Target Gene Symbol', 'Sorted Counts', 'Unsorted Counts']].copy()
+            for_ratio_test = self.guides_result[['sgRNA Target Sequence', 'Target Gene Symbol', 'Bot Sorted Counts', 'Top Sorted Counts']].copy()
             self.ratio_test(for_ratio_test)
 
 
 
-        self.genes_result.sort_values(by=["LFC"], inplace=True)
+        self.genes_result.sort_values(by=["Target Gene Symbol"], inplace=True)
         genes_path = self.output_prefix+"_gene_enrichment_calculation.csv"
         print(genes_path)
         self.genes_result.to_csv(genes_path)
-        self.guides_result.sort_values(by=["LFC"], ascending=False, inplace=True)
+        self.guides_result.sort_values(by=["sgRNA Target Sequence"], ascending=False, inplace=True)
         guide_path = self.output_prefix+"_guide_enrichment_calculation.csv"
         self.guides_result.to_csv(guide_path)
 
@@ -185,13 +212,21 @@ class parseThread(threading.Thread):
 
     def parse_files(self):
         self.guides_result = create_dataframe(self.guides_file)
-        self.status = "Parsing sorted file..."
-        sorted_counts_dict = parse_qfast(self.sorted_file, self.guides_file)
-        add_df_column(self.guides_result, sorted_counts_dict, "Sorted Counts")
 
-        self.status = "Parsing unsorted file..."
-        unsorted_counts_dict = parse_qfast(self.unsorted_file, self.guides_file)
-        add_df_column(self.guides_result, unsorted_counts_dict, "Unsorted Counts")
+        if self.top_sorted_file:
+            self.status = "Parsing top sorted file..."
+            top_sorted_counts_dict = parse_qfast(self.top_sorted_file, self.guides_file)
+            add_df_column(self.guides_result, top_sorted_counts_dict, "Top Sorted Counts")
+
+        if self.bot_sorted_file:
+            self.status = "Parsing top sorted file..."
+            bot_sorted_counts_dict = parse_qfast(self.bot_sorted_file, self.guides_file)
+            add_df_column(self.guides_result, bot_sorted_counts_dict, "Bot Sorted Counts")
+
+        if self.unsorted_file:
+            self.status = "Parsing unsorted file..."
+            unsorted_counts_dict = parse_qfast(self.unsorted_file, self.guides_file)
+            add_df_column(self.guides_result, unsorted_counts_dict, "Unsorted Counts")
 
     def perform_mageck_test(self):
         command = "mageck test -k " + self.mageck_path + " -t 1 -c 0 -n " + str(self.output_dir)+"_mageck" + " --sort-criteria pos --gene-lfc-method alphamean --control-sgrna " + str(self.control_file)
@@ -212,17 +247,17 @@ class parseThread(threading.Thread):
         #df = df.rename(columns={'Sorted Counts': 'bot.Rep1.Reads', 'Unsorted Counts': 'top.Rep1.Reads'})
 
         # Add 1 to reads
-        df['Sorted Counts'] = df['Sorted Counts']+1
-        df['Unsorted Counts'] = df['Unsorted Counts']+1
+        df['Bot Sorted Counts+1'] = df['Bot Sorted Counts']+1
+        df['Top Sorted Counts+1'] = df['Top Sorted Counts']+1
 
-        forQuant = df[['Sorted Counts','Unsorted Counts']].copy()
+        forQuant = df[['Bot Sorted Counts+1','Top Sorted Counts+1']].copy()
         quantNorm = self.quantileNormalize(forQuant)
         # rank_mean = forQuant.stack().groupby(forQuant.rank(method='first').stack().astype(int)).mean()
         # quantNorm = forQuant.rank(method='min').stack().astype(int).map(rank_mean).unstack()
 
 
-        df['bot.Rep1.Quant'] = quantNorm.loc[:,'Unsorted Counts']
-        df['top.Rep1.Quant'] = quantNorm.loc[:,'Sorted Counts']
+        df['bot.Rep1.Quant'] = quantNorm.loc[:,'Top Sorted Counts+1']
+        df['top.Rep1.Quant'] = quantNorm.loc[:,'Bot Sorted Counts+1']
 
         ratios = df[['sgRNA Target Sequence', 'Target Gene Symbol', 'bot.Rep1.Quant']].copy()
         ratios.rename(columns = {'bot.Rep1.Quant':'Bot5.Geom.Mean'}, inplace=True)
@@ -252,10 +287,13 @@ class parseThread(threading.Thread):
             ratios.loc[start:end,'ZScore'] = guides.loc[:,'ZScore']
 
         print("Collapsing to Gene Level...")
+        ratios.sort_values(by=['sgRNA Target Sequence'], inplace=True)
         aggregation_rule = {c : "mean" if (c == "ZScore" or c == "log_ratio") else "first" for c in ratios.columns}
         aggregation_rule.pop("Target Gene Symbol")
         gene_level_df = ratios.groupby("Target Gene Symbol", as_index=False).agg(aggregation_rule)
         gene_level_df.sort_values(by=['ZScore'], ascending=False, inplace=True)
+        gene_level_df.drop(columns=["index"], inplace=True)
+        gene_level_df.reset_index(drop=True, inplace=True)
         ratios_path = self.output_prefix+"_ratio_test.csv"
         gene_level_df.to_csv(ratios_path)
         return ratios
