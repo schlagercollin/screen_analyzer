@@ -14,6 +14,12 @@ from pdb import set_trace as bp
 
 #idfile = sys.argv[1]
 
+def complete_merge(df1, df2):
+    column_set_1 = set(df1.columns)
+    column_set_2 = set(df2.columns)
+    intersection = list(column_set_1.intersection(column_set_2))
+    return pd.merge(df1, df2, on=intersection)
+
 def parse_lib(filename):
     """Creates a dictionary whose keys are the target sequence and whose values are the gene data"""
     print("Creating dict...")
@@ -138,28 +144,6 @@ class parseThread(threading.Thread):
         self.status = "Collapsing to Gene Level..."
         self.genes_result = collapse_to_gene_level(self.guides_result)
 
-        if self.config_analysis["Fischer"] == True:
-
-            self.fischer_guides_result = self.guides_result.copy()
-            self.fischer_genes_result = self.genes_result.copy()
-
-            self.status = "Computing LFC..."
-            compute_lfc(self.fischer_guides_result)
-            compute_lfc(self.fischer_genes_result)
-
-            self.status = "Computing fischer for guides..."
-            compute_fischer(self.fischer_guides_result)
-            self.status = "Computing fischer for genes..."
-            compute_fischer(self.fischer_genes_result)
-
-            self.fischer_genes_result.sort_values(by=["-log(FDR-Corrected P-Values)"], ascending=False, inplace=True)
-            genes_path = self.output_prefix+"_fischer_gene.csv"
-            print(genes_path)
-            self.fischer_genes_result.to_csv(genes_path)
-            self.fischer_guides_result.sort_values(by=["-log(FDR-Corrected P-Values)"], ascending=False, inplace=True)
-            guide_path = self.output_prefix+"_fischer_guide.csv"
-            self.fischer_guides_result.to_csv(guide_path)
-
         if self.config_analysis["Mageck"] == True:
 
             self.mageck_guides_result = self.guides_result.copy()
@@ -185,10 +169,16 @@ class parseThread(threading.Thread):
             self.mageck_genes_result["pos|p-value"] = self.mageck_result_df["pos|p-value"]
             self.mageck_genes_result["-log(pos|p-value)"] = self.mageck_result_df["-log(pos|p-value)"]
 
+            # Sort by mageck p-value and then write out mageck output file
             self.mageck_genes_result.sort_values(by=["-log(pos|p-value)"], ascending=False, inplace=True)
             genes_path = self.output_prefix+"_mageck_gene.csv"
             print(genes_path)
             self.mageck_genes_result.to_csv(genes_path)
+
+            # Append new analysis to master file
+            self.genes_result = complete_merge(self.genes_result, self.mageck_genes_result)
+
+
 
         if self.config_analysis["Ratio"] == True:
             print(self.guides_result.columns)
@@ -233,6 +223,7 @@ class parseThread(threading.Thread):
         self.status = "Running mageck..."
         #os.chdir(self.output_dir)
         os.system(command)
+        time.sleep(5); #wait 5 seconds for mageck to be done?
         mageck_prefix = self.output_prefix+"_mageck.gene_summary.txt"
         self.mageck_result_df = pd.read_csv(mageck_prefix, sep="\t")
         self.mageck_result_df["-log(pos|p-value)"] = self.mageck_result_df["pos|p-value"].apply(lambda x: -1*math.log(x, 10))
@@ -296,6 +287,9 @@ class parseThread(threading.Thread):
         gene_level_df.reset_index(drop=True, inplace=True)
         ratios_path = self.output_prefix+"_ratio_test.csv"
         gene_level_df.to_csv(ratios_path)
+
+        self.genes_result = complete_merge(self.genes_result, gene_level_df)
+
         return ratios
 
     def geomMean(self, x):

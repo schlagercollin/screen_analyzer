@@ -68,6 +68,14 @@ $( document ).ready( function() {
                 displayResult(result.data);
                 //displayStats(data.sorted_stats, data.unsorted_stats)
             },
+            error: function(error) {
+                // From responseText (HTML string), extract error message from title element
+                var error_HTML_response = $(error.responseText);
+                console.log(error_HTML_response);
+                var error = $(error_HTML_response).filter("title").html();
+                alert("Error loading files from analysis directory. " +
+                "Server says: "+ error);
+            },
             processData: false,
             contentType: false
         });
@@ -147,6 +155,33 @@ $( document ).ready( function() {
         }
     });
 
+    $(".analysis_type").change( function() {
+        /* Function to set up correct input fields for a given analysis */
+        var analysisVals = [];
+        $('.analysis_type :checked').each(function() {
+            analysisVals.push($(this).val());
+        });
+        console.log("Analyses to be performed: ", analysisVals);
+        $("#file_selection_div").slideUp(250);
+        if (analysisVals.indexOf("Ratio") >= 0) {
+            if (analysisVals.length == 1){
+                $("#unsort_div").addClass("invisible");
+            } else {
+                $("#unsort_div").removeClass("invisible");
+            }
+            $("#bot_sort_div").removeClass("invisible");
+            $("#top_sort_div > span").text("Top Sorted File: ")
+
+        } else {
+            $("#bot_sort_div").addClass("invisible");
+            $("#unsort_div").removeClass("invisible");
+            $("#top_sort_div > span").text("Sorted File: ")
+        }
+        if (analysisVals.length > 0) {
+            $("#file_selection_div").slideDown(250);
+        }
+    });
+
     function displayMageck(mageck_results) {
         //console.log(mageck_results);
         //takes json data from controller and parses it to display the screen data
@@ -156,10 +191,10 @@ $( document ).ready( function() {
         var genes = [];
         var colors = [];
         $("div.results").empty(); //clear old data stuff
-        Plotly.purge('plotDiv2');
-        Plotly.purge('plotDiv3');
+        Plotly.purge('plotDiv_topCounts');
+        Plotly.purge('plotDiv_unsortedCounts');
         $("div.plotDiv2").empty();
-        $("div.plotDiv3").empty();
+        $("div.plotDiv_unsortedCounts").empty();
         console.log("About to iterate.");
         var counter = 0;
 
@@ -193,7 +228,7 @@ $( document ).ready( function() {
         $("span#analyze_status").html("");
 
         //Plotly stuff
-        var trace1 = {
+        var trace_mageck = {
             x: log2foldchanges,
             y: p_values,
             text: genes,
@@ -203,7 +238,7 @@ $( document ).ready( function() {
                 line: {width: 1}
             }
         }
-        var data1 = [ trace1 ];
+        var data_mageck = [ trace_mageck ];
         var layout1 = {
             title: "Mageck Results",
             xaxis: {
@@ -215,20 +250,23 @@ $( document ).ready( function() {
                 autorange: true,
                 title: "-log(FDR)"
             },
-            autosize: false,
+            autosize: true,
             width: 500,
             height: 500,
             hovermode:'closest'
         }
         $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
-        Plotly.newPlot('plotDiv1', data1, layout1); //create plot
+        Plotly.newPlot('plotDiv_mageck', data_mageck, layout_mageck); //create plot
 
     };
 
     function displayResult(result) {
-        Plotly.purge('plotDiv1');
-        Plotly.purge('plotDiv2');
-        Plotly.purge('plotDiv3');
+        Plotly.purge('plotDiv_mageck');
+        Plotly.purge('plotDiv_botCounts');
+        Plotly.purge('plotDiv_unsortedCounts');
+        Plotly.purge('plotDiv_topCounts');
+        Plotly.purge('plotDiv_ratio');
+        Plotly.purge('plotDiv_fischer');
         //console.log("HERE");
         //console.log(result);
         var nan = NaN;
@@ -241,83 +279,121 @@ $( document ).ready( function() {
             display_type ="Mageck";
             console.log("Mageck was performed.");
             dataframe = dataframe.sort("-log(pos|p-value)", ascending=true);
-            var x_4 = dataframe.c("pos|lfc").toArray();
-            var genes_4 = dataframe.c("Target Gene Symbol").toArray();
-            var y_4 = dataframe.c("-log(pos|p-value)").toArray();
+            var x_mageck = dataframe.c("pos|lfc").toArray();
+            var genes_mageck = dataframe.c("Target Gene Symbol").toArray();
+            var y_mageck = dataframe.c("-log(pos|p-value)").toArray();
         }
         if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
             display_type = "Fischer Exact"
 
             console.log("Fischer was performed.");
             dataframe = dataframe.sort("-log(FDR-Corrected P-Values)", ascending=true);
-            var x_1 = dataframe.c("LFC").toArray();
-            var genes_1 = dataframe.c("Target Gene Symbol").toArray();
-            var y_1 = dataframe.c("-log(FDR-Corrected P-Values)").toArray();
+            var x_fischer = dataframe.c("LFC").toArray();
+            var genes_fischer = dataframe.c("Target Gene Symbol").toArray();
+            var y_fischer = dataframe.c("-log(FDR-Corrected P-Values)").toArray();
+        }
+        if (columns.indexOf("ZScore") > -1){
+            display_type = "Ratio Test"
+
+            console.log("Ratio Test was performed.");
+            dataframe = dataframe.sort("ZScore", ascending=false);
+            var x_ratio = dataframe.c("log_MA").toArray();
+            var y_ratio = dataframe.c("ZScore").toArray();
+            var genes_ratio = dataframe.c("Target Gene Symbol").toArray();
         }
         $("#display_settings_select").val(display_type);
-        dataframe = dataframe.sort("Sorted Counts", ascending=false);
-        var y_2 = dataframe.c("Sorted Counts").toArray();
-        var genes_2 = dataframe.c("Target Gene Symbol").toArray();
-        var x_2 = dataframe.c("Target Gene Symbol").toArray();
+        dataframe = dataframe.sort("Top Sorted Counts", ascending=false);
+        var y_topCounts = dataframe.c("Top Sorted Counts").toArray();
+        var genes_topCounts = dataframe.c("Target Gene Symbol").toArray();
+        var x_topCounts = dataframe.c("Target Gene Symbol").toArray();
+
+        dataframe = dataframe.sort("Bot Sorted Counts", ascending=false);
+        var y_botCounts = dataframe.c("Bot Sorted Counts").toArray();
+        var genes_botCounts = dataframe.c("Target Gene Symbol").toArray();
+        var x_botCounts = dataframe.c("Target Gene Symbol").toArray();
 
         dataframe = dataframe.sort("Unsorted Counts", ascending=false);
-        var y_3 = dataframe.c("Unsorted Counts").toArray();
-        var genes_2 = dataframe.c("Target Gene Symbol").toArray();
-        var x_3 = dataframe.c("Target Gene Symbol").toArray();
-        y_2.shift() // Take out control
-        x_2.shift()
-        y_3.shift()
-        x_3.shift()
+        var y_unsortedCounts = dataframe.c("Unsorted Counts").toArray();
+        var genes_topCounts = dataframe.c("Target Gene Symbol").toArray();
+        var x_unsortedCounts = dataframe.c("Target Gene Symbol").toArray();
+        y_topCounts.shift() // Take out Non-Targeting-Control (will be most counts)
+        x_topCounts.shift()
+        y_unsortedCounts.shift()
+        x_unsortedCounts.shift()
+        y_botCounts.shift()
+        x_botCounts.shift()
 
         // Extract data from file
         displayGeneBoxes(display_type)
         //Plotly stuff
-        var trace1 = {
-            x: x_1,
-            y: y_1,
-            text: genes_1,
+        var trace_fischer = {
+            x: x_fischer,
+            y: y_fischer,
+            text: genes_fischer,
             mode: 'markers',
             marker: {
                 //color: colors,
                 line: {width: 1}
             }
         }
-        var trace2 = {
-            x: x_2,
-            y: y_2,
+        var trace_topCounts = {
+            x: x_topCounts,
+            y: y_topCounts,
             mode: 'markers',
             marker: {
                 //color: colors,
                 line: {width: 1}
             }
         }
-        var trace3 = {
-            x: x_3,
-            y: y_3,
+        var trace_unsortedCounts = {
+            x: x_unsortedCounts,
+            y: y_unsortedCounts,
             mode: 'markers',
             marker: {
                 //color: colors,
                 line: {width: 1}
             }
         }
-        var trace4 = {
-            x: x_4,
-            y: y_4,
+        var trace_mageck = {
+            x: x_mageck,
+            y: y_mageck,
             mode: 'markers',
-            text: genes_4,
+            text: genes_mageck,
             marker: {
                 //color: colors,
                 line: {width: 1}
             }
         }
-        var data1 = [ trace1 ];
-        var data2 = [ trace2 ];
-        var data3 = [ trace3 ];
-        var data4 = [ trace4 ];
-        var layout1 = {
-            autosize: false,
-            width: 1300,
-            height: 600,
+        var trace_botCounts = {
+            x: x_botCounts,
+            y: y_botCounts,
+            text: genes_botCounts,
+            mode: 'markers',
+            marker: {
+                //color: colors,
+                line: {width: 1}
+            }
+        }
+        var trace_ratio = {
+            x: x_ratio,
+            y: y_ratio,
+            text: genes_ratio,
+            mode: 'markers',
+            marker: {
+                //color: colors,
+                line: {width: 1}
+            }
+        }
+        var data_fischer = [ trace_fischer ];
+        var data_topCounts = [ trace_topCounts ];
+        var data_unsortedCounts = [ trace_unsortedCounts ];
+        var data_mageck = [ trace_mageck ];
+        var data_botCounts = [ trace_botCounts ];
+        var data_ratio = [ trace_ratio ];
+        var layout_fischer = {
+            autosize: true,
+            //width: 1300,
+            //height: 600,
             title: "Fischer Test – log(P-Value) vs Log2(Fold Change))",
             xaxis: {
                 autorange: true,
@@ -330,11 +406,11 @@ $( document ).ready( function() {
             },
             hovermode:'closest'
         }
-        var layout2 = {
-            autosize: false,
-            width: 1300,
-            height: 600,
-            title: "Sorted Frequencies",
+        var layout_topCounts = {
+            autosize: true,
+            // width: 1300,
+            // height: 600,
+            title: "Top Sorted Frequencies",
             xaxis: {
                 autorange: true,
                 title: "Gene Target"
@@ -346,10 +422,10 @@ $( document ).ready( function() {
             },
             hovermode:'closest'
         }
-        var layout3 = {
-            autosize: false,
-            width: 1300,
-            height: 600,
+        var layout_unsortedCounts = {
+            autosize: true,
+            // width: 1300,
+            // height: 600,
             title: "Unsorted Frequencies",
             xaxis: {
                 autorange: true,
@@ -362,10 +438,10 @@ $( document ).ready( function() {
             },
             hovermode:'closest'
         }
-        var layout4 = {
-            autosize: false,
-            width: 1300,
-            height: 600,
+        var layout_mageck = {
+            autosize: true,
+            // width: 1300,
+            // height: 600,
             title: "Mageck – log(P-Value) vs log2(FoldChange)",
             xaxis: {
                 autorange: true,
@@ -378,21 +454,56 @@ $( document ).ready( function() {
             },
             hovermode:'closest'
         }
+        var layout_botCounts = {
+            autosize: true,
+            // width: 1300,
+            // height: 600,
+            title: "Bot Sorted Frequencies",
+            xaxis: {
+                autorange: true,
+                title: "Gene Target"
+            },
+            yaxis: {
+                //type: 'log',
+                autorange: true,
+                title: "Frequency"
+            },
+            hovermode:'closest'
+        }
+        var layout_ratio = {
+            autosize: true,
+            //width: 1300,
+            //height: 600,
+            title: "Regev Ratio Z Score",
+            xaxis: {
+                autorange: true,
+                title: "log(Mean Abundance)"
+            },
+            yaxis: {
+                //type: 'log',
+                autorange: true,
+                title: "Z Score"
+            },
+            hovermode:'closest'
+        }
         $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
 
         if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
-            Plotly.newPlot('plotDiv1', data1, layout1); //create plot
+            Plotly.newPlot('plotDiv_fischer', data_fischer, layout_fischer); //create plot
         }
         if (columns.indexOf("-log(pos|p-value)") > -1){
-            Plotly.newPlot('plotDiv4', data4, layout4); //create plot
+            Plotly.newPlot('plotDiv_mageck', data_mageck, layout_mageck); //create plot
         }
-        Plotly.newPlot('plotDiv2', data2, layout2); //create plot
-        Plotly.newPlot('plotDiv3', data3, layout3); //create plot
+        Plotly.newPlot('plotDiv_topCounts', data_topCounts, layout_topCounts); //create plot
+        Plotly.newPlot('plotDiv_unsortedCounts', data_unsortedCounts, layout_unsortedCounts); //create plot
+        Plotly.newPlot('plotDiv_botCounts', data_botCounts, layout_botCounts); //create plot
+        Plotly.newPlot('plotDiv_ratio', data_ratio, layout_ratio); //create plot
 
 
     };
 
     function displayGeneBoxes(datatype){
+        // Depending on datatype selection, print gene boxes and the information contained in them
         if (datatype == "Mageck") {
             console.log("Printing mageck boxes.");
             dataframe = dataframe.sort("-log(pos|p-value)", ascending=false);
@@ -403,10 +514,11 @@ $( document ).ready( function() {
                 //Iterates through genes and displays information
                 //HTML for each gene box
                 gene_symbol = genes_object[gene]["Target Gene Symbol"]
-                log2foldchange = parseFloat(genes_object[gene]["LFC"]).toFixed(5);
+                log2foldchange = parseFloat(genes_object[gene]["pos|lfc"]).toFixed(5);
                 p_value = parseFloat(genes_object[gene]["-log(pos|p-value)"]).toFixed(5);
                 unsorted_freq = parseFloat(genes_object[gene]["Unsorted Counts"]).toFixed(5);
-                sorted_freq = parseFloat(genes_object[gene]["Sorted Counts"]).toFixed(5);
+                top_sorted_freq = parseFloat(genes_object[gene]["Top Sorted Counts"]).toFixed(5);
+                bot_sorted_freq = parseFloat(genes_object[gene]["Bot Sorted Counts"]).toFixed(5);
                 summary = genes_object[gene]["Summary"]
                 description = genes_object[gene]["Description"]
                 //console.log(typeof(summary));
@@ -463,8 +575,43 @@ $( document ).ready( function() {
                     break;
                 }
             };
+        } else if (datatype=="Ratio Test") {
+            console.log("Printing ratio boxes");
+            dataframe = dataframe.sort("ZScore", ascending=false);
+            genes_object = dataframe.toObjArray()
+            var counter = 0;
+            $("div.results").empty(); //clear old data stuff
+            for (var gene in genes_object) {
+                //Iterates through genes and displays information
+                //HTML for each gene box
+                gene_symbol = genes_object[gene]["Target Gene Symbol"]
+                zscore = parseFloat(genes_object[gene]["ZScore"]).toFixed(5);
+                log_MA = parseFloat(genes_object[gene]["log_MA"]).toFixed(5);
+                top_sorted_freq = parseFloat(genes_object[gene]["Top Sorted Counts"]).toFixed(5);
+                bot_sorted_freq = parseFloat(genes_object[gene]["Bot Sorted Counts"]).toFixed(5);
+                summary = genes_object[gene]["Summary"]
+                description = genes_object[gene]["Description"]
+                //console.log(typeof(summary));
+                if (isNaN(summary)){
+                    //console.log("Replacing");
+                    summary = "";
+                }
+
+                $("div.results").append(
+                    "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+"><p><b>"+genes_object[gene]["Target Gene Symbol"]+"</b></p>" +
+                    "<p title='Z Score' style='font-size:0.5em'>"+zscore+"</p>" +
+                    "<p title='log_MA' style='font-size:0.5em'>"+log_MA+"</p>" +
+                    "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
+                    "<p class='details invisible' style='font-size:0.3em'>"+summary+"</p>" +
+                    "</div>"
+                );
+                counter += 1;
+                if (counter >= 1000){
+                    break;
+                }
+            };
         } else {
-            console.log("What do you want?");
+            console.log("No data type selected.");
         };
 
     }
@@ -523,89 +670,93 @@ $( document ).ready( function() {
 
 });
 </script>
+
+
+
 <h1>Genetic Screen Analysis Pipeline</h1>
 <h3>&nbsp Perform a New Analysis</h3>
     <form id="data_submit" method="post" enctype="multipart/form-data">
     <div>
+        Select Analysis:
         <div class="form-group">
-            Top Sorted File:
-            <select name="top_sorted" id="qFast_file_select" class="file_select form-control">
-                {% for item in data_files['fastq'] %}
-                    <option>
-                        {{ item.capitalize() }}
-                    </option>
-                {% endfor %}
-                    <option>
-                        Upload your own
-                    </option>
-            </select>
-            <input name="top_sorted" id="qFast_file_upload" style="display: none;" class="file_upload form-control file_select" type="file"/>
+            <div class="form-control file_select analysis_type">
+                <label class="data_option checkbox-inline">
+                   <input type="checkbox" name="Mageck" value="Mageck">Mageck</input>
+                 </label>
+                 <label class="data_option checkbox-inline">
+                   <input type="checkbox" name="Fischer" value="Fischer">Fischer</input>
+                 </label>
+                 <label class="data_option checkbox-inline">
+                   <input type="checkbox" name="Ratio" value="Ratio">Ratio</input>
+                 </label>
+            </div>
+        </div>
+        <div id="file_selection_div" style="display: none;">
+            <div class="form-group" id="top_sort_div">
+                <span>Sorted File:</span>
+                <select name="top_sorted" id="top_sorted" class="file_select form-control">
+                    {% for item in data_files['fastq'] %}
+                        <option>
+                            {{ item.capitalize() }}
+                        </option>
+                    {% endfor %}
+                        <option>
+                            Upload your own
+                        </option>
+                </select>
+                <input name="top_sorted" id="qFast_file_upload" style="display: none;" class="file_upload form-control file_select" type="file"/>
 
-        </div>
-        <div class="form-group">
-            Bottom Sorted File:
-            <select name="bot_sorted" id="qFast_file_select" class="file_select form-control">
-                {% for item in data_files['fastq'] %}
-                    <option>
-                        {{ item.capitalize() }}
-                    </option>
-                {% endfor %}
-                    <option>
-                        Upload your own
-                    </option>
-            </select>
-            <input name="bot_sorted" id="qFast_file_upload" style="display: none;" class="form_control file_select file_upload" type="file"/>
-        </div>
-        <div class="form-group">
-            Unsorted File:
-            <select name="unsorted" id="qFast_file_select" class="file_select form-control">
-                {% for item in data_files['fastq'] %}
-                    <option>
-                        {{ item.capitalize() }}
-                    </option>
-                {% endfor %}
-                    <option>
-                        Upload your own
-                    </option>
-            </select>
-            <input name="unsorted" id="qFast_file_upload" style="display: none;" class="form_control file_select file_upload" type="file"/>
-        </div>
+            </div>
+            <div class="form-group invisible" id="bot_sort_div">
+                Bottom Sorted File:
+                <select name="bot_sorted" id="bot_sorted" class="file_select form-control">
+                    {% for item in data_files['fastq'] %}
+                        <option>
+                            {{ item.capitalize() }}
+                        </option>
+                    {% endfor %}
+                        <option>
+                            Upload your own
+                        </option>
+                </select>
+                <input name="bot_sorted" id="qFast_file_upload" style="display: none;" class="form_control file_select file_upload" type="file"/>
+            </div>
+            <div class="form-group" id="unsort_div">
+                Unsorted File:
+                <select name="unsorted" id="unsorted" class="file_select form-control">
+                    {% for item in data_files['fastq'] %}
+                        <option>
+                            {{ item.capitalize() }}
+                        </option>
+                    {% endfor %}
+                        <option>
+                            Upload your own
+                        </option>
+                </select>
+                <input name="unsorted" id="qFast_file_upload" style="display: none;" class="form_control file_select file_upload" type="file"/>
+            </div>
 
-        <div class="form-group">
-        Guides File:
-            <select name="guides" id="library_file_select" class="file_select form-control">
-                {% for item in data_files['library'] %}
-                    <option>
-                        {{ item.capitalize() }}
-                    </option>
-                {% endfor %}
-                    <option>
-                        Upload your own
-                    </option>
-            </select>
-            <input name="guides" id="library_file_upload" style="display: none;" class="file_upload file_select form-control" type="file" />
-        </div>
-        <div class="form-group">
-            Output File Name:
-                <input name="output" placeholder="Enter an output name here" id="file_name_input" class="file_select form-control" />
-        </div>
-    Analysis Type(s):
-    <div class="form-group">
-    <div class="form-control file_select">
-            <label class="data_option checkbox-inline">
-               <input type="checkbox" name="Mageck" value="Mageck">Mageck</input>
-             </label>
-             <label class="data_option checkbox-inline">
-               <input type="checkbox" name="Fischer" value="Fischer">Fischer</input>
-             </label>
-             <label class="data_option checkbox-inline">
-               <input type="checkbox" name="Ratio" value="Ratio">Ratio</input>
-             </label>
-        </div>
+            <div class="form-group" id="guides_div">
+            Guides File:
+                <select name="guides" id="library_file_select" class="file_select form-control">
+                    {% for item in data_files['library'] %}
+                        <option>
+                            {{ item.capitalize() }}
+                        </option>
+                    {% endfor %}
+                        <option>
+                            Upload your own
+                        </option>
+                </select>
+                <input name="guides" id="library_file_upload" style="display: none;" class="file_upload file_select form-control" type="file" />
+            </div>
+            <div class="form-group" id="output_div">
+                Output File Name:
+                    <input name="output" placeholder="Enter an output name here" id="file_name_input" class="file_select form-control" />
+            </div>
+
+<button type="submit" id="analyze" class="btn btn-info"><i class="fas fa-upload"></i> Submit a New Analysis</button><span style="font-style: italic" id="analyze_status"></span>
     </div>
-
-    </div>
-    <button type="submit" id="analyze" class="btn btn-info"><i class="fas fa-upload"></i> Submit a New Analysis</button><span style="font-style: italic" id="analyze_status"></span>
 
     <div class="invisible progress" style="max-width: 500px; margin: 5px;">
           <div id="progress_bar" class="invisible progress-bar progress-bar-striped progress-bar-animated" role="progress-bar"
@@ -615,10 +766,11 @@ $( document ).ready( function() {
     </div>
 
     </form>
-    <div id="plotDiv4"></div>
-    <div id="plotDiv1"></div>
-    <div id="plotDiv2"></div>
-    <div id="plotDiv3"></div>
+    {% set graphList = ['plotDiv_mageck', 'plotDiv_ratio', 'plotDiv_topCounts', 'plotDiv_botCounts', 'plotDiv_unsortedCounts', 'plotDiv_fischer'] %}
+    {% for item in graphList %}
+        <div id="{{ item }}"></div>
+    {% endfor %}
+
 
     <div class="result_wrapper" style="display: none;">
         <div class="stats">
