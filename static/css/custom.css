@@ -131,3 +131,12 @@ th, td {
   line-height: 75px;
   font-size: 30px;
 }
+
+.no_style_link {
+    color: inherit;
+}
+
+.no_style_link:hover{
+    text-decoration: none;
+    color: inherit;
+}

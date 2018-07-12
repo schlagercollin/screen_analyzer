@@ -12,6 +12,7 @@ import library_embellish
 import time
 import logging
 import pandas as pd
+import copy
 #logging.basicConfig()
 #logging.getLogger().setLevel(logging.DEBUG)
 
@@ -127,6 +128,9 @@ def analysis_load():
     returns json object for display (see index.html)"""
     if request.method == 'POST':
         result_file = request.values['result_file']
+        data_points = int(request.values['datapoints'])
+        # analysis_type = request.values['analysis_type']
+        analysis_type = "ratio"
         print(result_file)
         if result_file == "Upload your own":
             result_file = request.files['result_file']
@@ -141,41 +145,53 @@ def analysis_load():
         except:
             contents = None
             date = "Unable to fetch date information."
-        gene_enrichment, guide_enrichment = load_from_dir(result_file_prefix)
-        print("made it here")
-        return jsonify(data=gene_enrichment, contents=contents, date=date)
 
-@app.route('/downloads/<path:dir_name>', methods=['GET', 'POST'])
-def download(dir_name):
-    dir_name_path = os.path.join(UPLOAD_FOLDER, "output", dir_name)
-    #print("Making Archive...")
-    #shutil.make_archive(dir_name_path, 'zip', dir_name_path)
-    #print("Done.")
-    file_name = dir_name+".zip"
-    directory_path = os.path.join(UPLOAD_FOLDER, "output")
-    print(directory_path, file_name)
-    shutil.make_archive(dir_name_path, 'zip', dir_name_path)
-    return send_from_directory(directory=directory_path, filename=file_name)
+        gene_enrichment_df, guide_enrichment_df = load_from_dir(result_file_prefix)
+
+        outputs = get_extracted_data(gene_enrichment_df, number=data_points)
+
+        print("Passing dataframe to client.")
+        return jsonify(outputs=outputs)
 
 def load_from_dir(result_file_prefix):
-    # function to load relevant portions from a directory
-    #sorted_stats_file = result_file_prefix + "_sorted_statistics.csv"
-    #unsorted_stats_file = result_file_prefix + "_unsorted_statistics.csv"
+    """function to load relevant portions from a directory"""
     gene_enrichment_file = result_file_prefix + "_gene_enrichment_calculation.csv"
     guide_enrichment_file = result_file_prefix + "_guide_enrichment_calculation.csv"
-
     gene_enrichment_df = pd.read_csv(gene_enrichment_file)
     guide_enrichment_df = pd.read_csv(guide_enrichment_file)
+    return gene_enrichment_df, guide_enrichment_df
 
-    gene_enrichment = str(list(gene_enrichment_df.T.to_dict().values()))
-    guide_enrichment = str(list(guide_enrichment_df.T.to_dict().values()))
-    return gene_enrichment, guide_enrichment
-    #mageck_file = result_file_prefix + "_mageck.sgrna_summary.txt"
-    #gene_enrichment = load_csv_as_list(gene_enrichment_file, skip_header=True)
-    #sorted_stats = load_csv_as_list(sorted_stats_file, skip_header=False)
-    #unsorted_stats = load_csv_as_list(unsorted_stats_file, skip_header=False)
-    #mageck_results = load_csv_as_list(mageck_file, skip_header=True, delimiter="\t")
-    #return gene_enrichment, sorted_stats, unsorted_stats, mageck_results
+def get_extracted_data(dataframe, number=1000):
+    """function to sort dataframe and return top <number> of hits for
+    easy transfer to frontend"""
+
+    analyses = {'mageck': '-log(pos|p-value)',
+                'ratio': 'ZScore',
+                'fischer':'-log(FDR-Corrected P-Values)',
+                'top_sorted': 'Top Sorted Counts',
+                'bot_sorted': 'Bot Sorted Counts',
+                'unsorted': 'Unsorted Counts'}
+
+    print("Retrieving %d datapoints", number)
+    outputs = copy.deepcopy(analyses)
+
+    for name, sort_value in analyses.items():
+        if sort_value in dataframe.columns:
+            extracted = extract_data(dataframe, sort_value, number=number)
+            outputs[name] = extracted
+        else:
+            outputs[name] = False
+
+    print(outputs)
+
+    return outputs
+
+def extract_data(dataframe, analysis_type, number=1000):
+    """Sorts given dataframe by analysis_type. Slices top 1000 in format passable
+    to frontend javascript"""
+    dataframe.sort_values(by=analysis_type, ascending=False, inplace=True)
+    dataframe = dataframe.head(n=number)
+    return str(list(dataframe.T.to_dict().values()))
 
 def load_csv_as_list(file_name, skip_header=False, delimiter=','):
     with open(file_name, "r") as csv_file:
@@ -183,6 +199,15 @@ def load_csv_as_list(file_name, skip_header=False, delimiter=','):
         if skip_header == True:
             next(reader)
         return list(reader)
+
+@app.route('/downloads/<path:dir_name>', methods=['GET', 'POST'])
+def download(dir_name):
+    dir_name_path = os.path.join(UPLOAD_FOLDER, "output", dir_name)
+    file_name = dir_name+".zip"
+    directory_path = os.path.join(UPLOAD_FOLDER, "output")
+    print(directory_path, file_name)
+    shutil.make_archive(dir_name_path, 'zip', dir_name_path)
+    return send_from_directory(directory=directory_path, filename=file_name)
 
 @app.route('/analysis/status', methods=['POST'])
 def analysis_status():
