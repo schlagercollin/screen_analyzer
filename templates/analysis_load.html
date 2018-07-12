@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <script type="text/javascript">
-var dataframe = "Placeholder";
+var global_dataframes = "Placeholder";
 var display_type = "Placeholder";
 var progress_counter = 0;
 $( document ).ready( function() {
@@ -63,9 +63,7 @@ $( document ).ready( function() {
             data: formData,
             success: function(result) {
                 $("button#load_result").text("Load");
-                console.log("HERE");
-                console.log(result.contents, result.date);
-                displayResult(result.data);
+                displayResult(result["outputs"]);
                 //displayStats(data.sorted_stats, data.unsorted_stats)
             },
             error: function(error) {
@@ -155,149 +153,71 @@ $( document ).ready( function() {
         }
     });
 
-    function displayMageck(mageck_results) {
-        //console.log(mageck_results);
-        //takes json data from controller and parses it to display the screen data
-        $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" /> Crunching numbers...');
-        var log2foldchanges = [];
-        var p_values = [];
-        var genes = [];
-        var colors = [];
-        $("div.results").empty(); //clear old data stuff
-        Plotly.purge('plotDiv_topCounts');
-        Plotly.purge('plotDiv_unsortedCounts');
-        $("div.plotDiv2").empty();
-        $("div.plotDiv_unsortedCounts").empty();
-        console.log("About to iterate.");
-        var counter = 0;
+    function displayResult(output_dict) {
 
-        // Extract data from file
-        for (var gene in mageck_results) {
-            //Iterates through genes and displays information
-            //HTML for each gene box
-            geneName = mageck_results[gene][1]
-            log2foldchange = parseFloat(mageck_results[gene][6]).toFixed(5);
-            p_value = (-1*Math.log2(parseFloat(mageck_results[gene][13]))).toFixed(5);
-            $("div.results").append(
-                "<div class='flex-item geneResult restrained' name="+geneName+"><p><b>"+geneName+"</b></p>" +
-                "<p style='font-size:0.5em'><span class='details invisible'>LFC: </span>"+log2foldchange+"</p>" +
-                "<p style='font-size:0.5em'><span class='details invisible'>FDR: </span>"+p_value+"</p>" +
-                "</div>"
-            );
-
-            log2foldchanges.push(log2foldchange);
-            p_values.push(p_value);
-            //unsorted_frequencies.push(unsorted_freq);
-            //sorted_frequencies.push(sorted_freq);
-            genes.push(geneName);
-            counter += 1;
-            if (counter >= 1000){
-                // only parse first 1000 genes (speed optimization)
-                break;
-            }
-        };
-        //unsorted_frequencies.sort(function(a, b){return b-a});
-        //sorted_frequencies.sort(function(a, b){return b-a});
-        $("span#analyze_status").html("");
-
-        //Plotly stuff
-        var trace_mageck = {
-            x: log2foldchanges,
-            y: p_values,
-            text: genes,
-            mode: 'markers',
-            marker: {
-                //color: colors,
-                line: {width: 1}
+        //Parse output_dict and strings contained in there to create dataframes
+        var nan = NaN; //needed for the eval of dataframe string
+        for (var propt in output_dict) {
+            obj_array = eval(output_dict[propt]);
+            if (obj_array != false ) { //if there's data, set data in dataframe
+                console.log(obj_array)
+                debugger;
+                output_dict[propt] = jd.dfFromObjArray(obj_array);
+            } else { //otherwise, keep field as false
+                output_dict[propt] = false;
             }
         }
-        var data_mageck = [ trace_mageck ];
-        var layout1 = {
-            title: "Mageck Results",
-            xaxis: {
-                autorange: true,
-                title: "LFC"
-            },
-            yaxis: {
-                //type: 'log',
-                autorange: true,
-                title: "-log(FDR)"
-            },
-            autosize: true,
-            width: 500,
-            height: 500,
-            hovermode:'closest'
-        }
-        $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
-        Plotly.newPlot('plotDiv_mageck', data_mageck, layout_mageck); //create plot
 
-    };
+        global_dataframes = output_dict
 
-    function displayResult(result) {
+        //Clear plotly plots that are present
         Plotly.purge('plotDiv_mageck');
         Plotly.purge('plotDiv_botCounts');
         Plotly.purge('plotDiv_unsortedCounts');
         Plotly.purge('plotDiv_topCounts');
         Plotly.purge('plotDiv_ratio');
         Plotly.purge('plotDiv_fischer');
-        //console.log("HERE");
-        //console.log(result);
-        var nan = NaN;
-        //takes json data from controller and parses it to display the screen data
-        var gene_enrichment = eval(result);
-        dataframe = jd.dfFromObjArray(gene_enrichment);
-        columns = dataframe.names().toArray();
 
-        if (columns.indexOf("-log(pos|p-value)") > -1){
-            display_type ="Mageck";
-            console.log("Mageck was performed.");
-            dataframe = dataframe.sort("-log(pos|p-value)", ascending=true);
-            var x_mageck = dataframe.c("pos|lfc").toArray();
-            var genes_mageck = dataframe.c("Target Gene Symbol").toArray();
-            var y_mageck = dataframe.c("-log(pos|p-value)").toArray();
-        }
-        if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
+        if (output_dict["mageck"]){ //if there's mageck data, extract x y and gene text data
+            display_type = "Mageck";
+            var x_mageck = output_dict["mageck"].c("pos|lfc").toArray();
+            var genes_mageck = output_dict["mageck"].c("Target Gene Symbol").toArray();
+            var y_mageck = output_dict["mageck"].c("-log(pos|p-value)").toArray();
+        };
+
+        if (output_dict["fischer"]){ // if there's fischer data, extract x y and gene text data
             display_type = "Fischer Exact"
-
-            console.log("Fischer was performed.");
-            dataframe = dataframe.sort("-log(FDR-Corrected P-Values)", ascending=true);
-            var x_fischer = dataframe.c("LFC").toArray();
-            var genes_fischer = dataframe.c("Target Gene Symbol").toArray();
-            var y_fischer = dataframe.c("-log(FDR-Corrected P-Values)").toArray();
-        }
-        if (columns.indexOf("ZScore") > -1){
+            var x_fischer = output_dict["fischer"].c("LFC").toArray();
+            var genes_fischer = output_dict["fischer"].c("Target Gene Symbol").toArray();
+            var y_fischer = output_dict["fischer"].c("-log(FDR-Corrected P-Values)").toArray();
+        };
+        if (output_dict["ratio"]){ //if there's ratio test data, extract x y and gene text data
             display_type = "Ratio Test"
-
-            console.log("Ratio Test was performed.");
-            dataframe = dataframe.sort("ZScore", ascending=false);
-            var x_ratio = dataframe.c("log_MA").toArray();
-            var y_ratio = dataframe.c("ZScore").toArray();
-            var genes_ratio = dataframe.c("Target Gene Symbol").toArray();
-        }
+            var x_ratio = output_dict["ratio"].c("log_MA").toArray();
+            var y_ratio = output_dict["ratio"].c("ZScore").toArray();
+            var genes_ratio = output_dict["ratio"].c("Target Gene Symbol").toArray();
+        };
         $("#display_settings_select").val(display_type);
-        dataframe = dataframe.sort("Top Sorted Counts", ascending=false);
-        var y_topCounts = dataframe.c("Top Sorted Counts").toArray();
-        var genes_topCounts = dataframe.c("Target Gene Symbol").toArray();
-        var x_topCounts = dataframe.c("Target Gene Symbol").toArray();
 
-        dataframe = dataframe.sort("Bot Sorted Counts", ascending=false);
-        var y_botCounts = dataframe.c("Bot Sorted Counts").toArray();
-        var genes_botCounts = dataframe.c("Target Gene Symbol").toArray();
-        var x_botCounts = dataframe.c("Target Gene Symbol").toArray();
+        if (output_dict["top_sorted"]){
+            var y_topCounts = output_dict["top_sorted"].c("Top Sorted Counts").toArray();
+            var genes_topCounts = output_dict["top_sorted"].c("Target Gene Symbol").toArray();
+            var x_topCounts = output_dict["top_sorted"].c("Target Gene Symbol").toArray();
+        };
+        if (output_dict["bot_sorted"]){
+            var y_botCounts = output_dict["bot_sorted"].c("Bot Sorted Counts").toArray();
+            var genes_botCounts = output_dict["bot_sorted"].c("Target Gene Symbol").toArray();
+            var x_botCounts = output_dict["bot_sorted"].c("Target Gene Symbol").toArray();
+        };
+        if (output_dict["unsorted"]){
+            var y_unsortedCounts = output_dict["unsorted"].c("Unsorted Counts").toArray();
+            var genes_topCounts = output_dict["unsorted"].c("Target Gene Symbol").toArray();
+            var x_unsortedCounts = output_dict["unsorted"].c("Target Gene Symbol").toArray();
+        };
 
-        dataframe = dataframe.sort("Unsorted Counts", ascending=false);
-        var y_unsortedCounts = dataframe.c("Unsorted Counts").toArray();
-        var genes_topCounts = dataframe.c("Target Gene Symbol").toArray();
-        var x_unsortedCounts = dataframe.c("Target Gene Symbol").toArray();
-        y_topCounts.shift() // Take out Non-Targeting-Control (will be most counts)
-        x_topCounts.shift()
-        y_unsortedCounts.shift()
-        x_unsortedCounts.shift()
-        y_botCounts.shift()
-        x_botCounts.shift()
-
-        // Extract data from file
+        // For a given display_type, display the geneboxes
         displayGeneBoxes(display_type)
+
         //Plotly stuff
         var trace_fischer = {
             x: x_fischer,
@@ -363,6 +283,7 @@ $( document ).ready( function() {
         var data_mageck = [ trace_mageck ];
         var data_botCounts = [ trace_botCounts ];
         var data_ratio = [ trace_ratio ];
+
         var layout_fischer = {
             autosize: true,
             //width: 1300,
@@ -459,27 +380,36 @@ $( document ).ready( function() {
             },
             hovermode:'closest'
         }
+
         $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
 
-        if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
+        //If data for a given analyis type, create a plotly plot for it
+        debugger;
+        if (output_dict["fischer"]){
             Plotly.newPlot('plotDiv_fischer', data_fischer, layout_fischer); //create plot
-        }
-        if (columns.indexOf("-log(pos|p-value)") > -1){
+        };
+        if (output_dict["mageck"]){
             Plotly.newPlot('plotDiv_mageck', data_mageck, layout_mageck); //create plot
-        }
-        Plotly.newPlot('plotDiv_topCounts', data_topCounts, layout_topCounts); //create plot
-        Plotly.newPlot('plotDiv_unsortedCounts', data_unsortedCounts, layout_unsortedCounts); //create plot
-        Plotly.newPlot('plotDiv_botCounts', data_botCounts, layout_botCounts); //create plot
-        Plotly.newPlot('plotDiv_ratio', data_ratio, layout_ratio); //create plot
-
-
+        };
+        if (output_dict["ratio"]){
+            Plotly.newPlot('plotDiv_ratio', data_ratio, layout_ratio); //create plot
+        };
+        if (output_dict["top_sorted"]){
+            Plotly.newPlot('plotDiv_topCounts', data_topCounts, layout_topCounts); //create plot
+        };
+        if (output_dict["bot_sorted"]){
+            Plotly.newPlot('plotDiv_botCounts', data_botCounts, layout_botCounts); //create plot
+        };
+        if (output_dict["unsorted"]){
+            Plotly.newPlot('plotDiv_unsortedCounts', data_unsortedCounts, layout_unsortedCounts); //create plot
+        };
     };
 
     function displayGeneBoxes(datatype){
         // Depending on datatype selection, print gene boxes and the information contained in them
         if (datatype == "Mageck") {
             console.log("Printing mageck boxes.");
-            dataframe = dataframe.sort("-log(pos|p-value)", ascending=false);
+            dataframe = global_dataframes["mageck"]
             genes_object = dataframe.toObjArray()
             var counter = 0;
             $("div.results").empty(); //clear old data stuff
@@ -487,11 +417,12 @@ $( document ).ready( function() {
                 //Iterates through genes and displays information
                 //HTML for each gene box
                 gene_symbol = genes_object[gene]["Target Gene Symbol"]
+                gene_id = genes_object[gene]["Target Gene ID"].toString()
                 log2foldchange = parseFloat(genes_object[gene]["pos|lfc"]).toFixed(5);
                 p_value = parseFloat(genes_object[gene]["-log(pos|p-value)"]).toFixed(5);
-                unsorted_freq = parseFloat(genes_object[gene]["Unsorted Counts"]).toFixed(5);
-                top_sorted_freq = parseFloat(genes_object[gene]["Top Sorted Counts"]).toFixed(5);
-                bot_sorted_freq = parseFloat(genes_object[gene]["Bot Sorted Counts"]).toFixed(5);
+                unsorted_freq = parseInt(genes_object[gene]["Unsorted Counts"]).toFixed(5);
+                top_sorted_freq = parseInt(genes_object[gene]["Top Sorted Counts"]).toFixed(5);
+                bot_sorted_freq = parseInt(genes_object[gene]["Bot Sorted Counts"]).toFixed(5);
                 summary = genes_object[gene]["Summary"]
                 description = genes_object[gene]["Description"]
                 //console.log(typeof(summary));
@@ -505,17 +436,18 @@ $( document ).ready( function() {
                     "<p title='log2(FoldChange)' style='font-size:0.5em'>"+log2foldchange+"</p>" +
                     "<p title='-log10(P-Value)' style='font-size:0.5em'>"+p_value+"</p>" +
                     "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
+                    "<a class='no_style_link details invisible' style='font-size: 0.5em' href='https://www.ncbi.nlm.nih.gov/gene/"+gene_id+"'>See NCBI</a>"+
                     "<p class='details invisible' style='font-size:0.3em'>"+summary+"</p>" +
                     "</div>"
                 );
                 counter += 1;
-                if (counter >= 1000){
-                    break;
-                }
+                // if (counter >= 1000){
+                //     break;
+                // }
             };
         } else if (datatype=="Fischer Exact") {
             console.log("Printing fischer boxes");
-            dataframe = dataframe.sort("-log(FDR-Corrected P-Values)", ascending=false);
+            dataframe = global_dataframes["fischer"];
             genes_object = dataframe.toObjArray()
             var counter = 0;
             $("div.results").empty(); //clear old data stuff
@@ -523,10 +455,11 @@ $( document ).ready( function() {
                 //Iterates through genes and displays information
                 //HTML for each gene box
                 gene_symbol = genes_object[gene]["Target Gene Symbol"]
+                gene_id = genes_object[gene]["Target Gene ID"].toString()
                 log2foldchange = parseFloat(genes_object[gene]["LFC"]).toFixed(5);
                 p_value = parseFloat(genes_object[gene]["-log(FDR-Corrected P-Values)"]).toFixed(5);
-                unsorted_freq = parseFloat(genes_object[gene]["Unsorted Counts"]).toFixed(5);
-                sorted_freq = parseFloat(genes_object[gene]["Sorted Counts"]).toFixed(5);
+                unsorted_freq = parseInt(genes_object[gene]["Unsorted Counts"]).toFixed(5);
+                sorted_freq = parseInt(genes_object[gene]["Sorted Counts"]).toFixed(5);
                 summary = genes_object[gene]["Summary"]
                 description = genes_object[gene]["Description"]
                 //console.log(typeof(summary));
@@ -540,17 +473,19 @@ $( document ).ready( function() {
                     "<p style='font-size:0.5em'>"+log2foldchange+"</p>" +
                     "<p style='font-size:0.5em'>"+p_value+"</p>" +
                     "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
+                    "<a class='no_style_link details invisible' style='font-size: 0.5em' href='https://www.ncbi.nlm.nih.gov/gene/"+gene_id+"'>See NCBI</a>"+
                     "<p class='details invisible' style='font-size:0.3em'>"+summary+"</p>" +
                     "</div>"
                 );
                 counter += 1;
-                if (counter >= 1000){
-                    break;
-                }
+                // if (counter >= 1000){
+                //     break;
+                // }
             };
         } else if (datatype=="Ratio Test") {
             console.log("Printing ratio boxes");
-            dataframe = dataframe.sort("ZScore", ascending=false);
+            dataframe = global_dataframes["ratio"];
+            console.log("toObjArray");
             genes_object = dataframe.toObjArray()
             var counter = 0;
             $("div.results").empty(); //clear old data stuff
@@ -558,10 +493,11 @@ $( document ).ready( function() {
                 //Iterates through genes and displays information
                 //HTML for each gene box
                 gene_symbol = genes_object[gene]["Target Gene Symbol"]
+                gene_id = genes_object[gene]["Target Gene ID"].toString()
                 zscore = parseFloat(genes_object[gene]["ZScore"]).toFixed(5);
                 log_MA = parseFloat(genes_object[gene]["log_MA"]).toFixed(5);
-                top_sorted_freq = parseFloat(genes_object[gene]["Top Sorted Counts"]).toFixed(5);
-                bot_sorted_freq = parseFloat(genes_object[gene]["Bot Sorted Counts"]).toFixed(5);
+                top_sorted_freq = parseInt(genes_object[gene]["Top Sorted Counts"]).toFixed(5);
+                bot_sorted_freq = parseInt(genes_object[gene]["Bot Sorted Counts"]).toFixed(5);
                 summary = genes_object[gene]["Summary"]
                 description = genes_object[gene]["Description"]
                 //console.log(typeof(summary));
@@ -575,13 +511,134 @@ $( document ).ready( function() {
                     "<p title='Z Score' style='font-size:0.5em'>"+zscore+"</p>" +
                     "<p title='log_MA' style='font-size:0.5em'>"+log_MA+"</p>" +
                     "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
+                    "<a class='no_style_link details invisible' style='font-size: 0.5em' target='_blank' href='https://www.ncbi.nlm.nih.gov/gene/"+gene_id+"'>See NCBI</a>"+
                     "<p class='details invisible' style='font-size:0.3em'>"+summary+"</p>" +
                     "</div>"
                 );
                 counter += 1;
-                if (counter >= 1000){
-                    break;
+                // console.log(counter);
+                // if (counter >= 1000){
+                //     break;
+                // }
+            };
+        } else if (datatype=="Unsorted Counts") {
+            console.log("Printing unsorted counts boxes");
+            dataframe = global_dataframes["unsorted"];
+            console.log("toObjArray");
+            genes_object = dataframe.toObjArray()
+            var counter = 0;
+            $("div.results").empty(); //clear old data stuff
+            for (var gene in genes_object) {
+                //Iterates through genes and displays information
+                //HTML for each gene box
+                gene_symbol = genes_object[gene]["Target Gene Symbol"]
+                gene_id = genes_object[gene]["Target Gene ID"].toString()
+                unsorted_counts = parseInt(genes_object[gene]["Unsorted Counts"])
+                top_sorted_freq = parseInt(genes_object[gene]["Top Sorted Counts"])
+                bot_sorted_freq = parseInt(genes_object[gene]["Bot Sorted Counts"])
+                summary = genes_object[gene]["Summary"]
+                description = genes_object[gene]["Description"]
+                //console.log(typeof(summary));
+                if (isNaN(summary)){
+                    //console.log("Replacing");
+                    summary = "";
                 }
+
+                $("div.results").append(
+                    "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+"><p><b>"+genes_object[gene]["Target Gene Symbol"]+"</b></p>" +
+                    "<p title='Unsorted Counts' style='font-size:0.5em'>"+unsorted_counts+"</p>" +
+                    "<p title='Top Sorted Counts' style='font-size:0.5em'>"+top_sorted_freq+"</p>" +
+                    "<p title='Bot Sorted Counts' style='font-size:0.5em'>"+bot_sorted_freq+"</p>" +
+                    "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
+                    "<a class='no_style_link details invisible' style='font-size: 0.5em' target='_blank' href='https://www.ncbi.nlm.nih.gov/gene/"+gene_id+"'>See NCBI</a>"+
+                    "<p class='details invisible' style='font-size:0.3em'>"+summary+"</p>" +
+                    "</div>"
+                );
+                counter += 1;
+                // console.log(counter);
+                // if (counter >= 1000){
+                //     break;
+                // }
+            };
+        } else if (datatype=="Sorted or Top Sorted Counts") {
+            console.log("Printing unsorted counts boxes");
+            dataframe = global_dataframes["top_sorted"];
+            console.log("toObjArray");
+            genes_object = dataframe.toObjArray()
+            var counter = 0;
+            $("div.results").empty(); //clear old data stuff
+            for (var gene in genes_object) {
+                //Iterates through genes and displays information
+                //HTML for each gene box
+                gene_symbol = genes_object[gene]["Target Gene Symbol"]
+                gene_id = genes_object[gene]["Target Gene ID"].toString()
+                unsorted_counts = parseInt(genes_object[gene]["Unsorted Counts"])
+                top_sorted_freq = parseInt(genes_object[gene]["Top Sorted Counts"])
+                bot_sorted_freq = parseInt(genes_object[gene]["Bot Sorted Counts"])
+                summary = genes_object[gene]["Summary"]
+                description = genes_object[gene]["Description"]
+                //console.log(typeof(summary));
+                if (isNaN(summary)){
+                    //console.log("Replacing");
+                    summary = "";
+                }
+
+                $("div.results").append(
+                    "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+"><p><b>"+genes_object[gene]["Target Gene Symbol"]+"</b></p>" +
+                    "<p title='Top Sorted Counts' style='font-size:0.5em'>"+top_sorted_freq+"</p>" +
+                    "<p title='Bot Sorted Counts' style='font-size:0.5em'>"+bot_sorted_freq+"</p>" +
+                    "<p title='Unsorted Counts' style='font-size:0.5em'>"+unsorted_counts+"</p>" +
+
+                    "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
+                    "<a class='no_style_link details invisible' style='font-size: 0.5em' target='_blank' href='https://www.ncbi.nlm.nih.gov/gene/"+gene_id+"'>See NCBI</a>"+
+                    "<p class='details invisible' style='font-size:0.3em'>"+summary+"</p>" +
+                    "</div>"
+                );
+                counter += 1;
+                // console.log(counter);
+                // if (counter >= 1000){
+                //     break;
+                // }
+            };
+        } else if (datatype=="Bottom Sorted Counts") {
+            console.log("Printing unsorted counts boxes");
+            dataframe = global_dataframes["bot_sorted"];
+            console.log("toObjArray");
+            genes_object = dataframe.toObjArray()
+            var counter = 0;
+            $("div.results").empty(); //clear old data stuff
+            for (var gene in genes_object) {
+                //Iterates through genes and displays information
+                //HTML for each gene box
+                gene_symbol = genes_object[gene]["Target Gene Symbol"]
+                gene_id = genes_object[gene]["Target Gene ID"].toString()
+                unsorted_counts = parseInt(genes_object[gene]["Unsorted Counts"])
+                top_sorted_freq = parseInt(genes_object[gene]["Top Sorted Counts"])
+                bot_sorted_freq = parseInt(genes_object[gene]["Bot Sorted Counts"])
+                summary = genes_object[gene]["Summary"]
+                description = genes_object[gene]["Description"]
+                //console.log(typeof(summary));
+                if (isNaN(summary)){
+                    //console.log("Replacing");
+                    summary = "";
+                }
+
+                $("div.results").append(
+                    "<div class='flex-item geneResult restrained' name="+genes_object[gene]["Target Gene Symbol"]+"><p><b>"+genes_object[gene]["Target Gene Symbol"]+"</b></p>" +
+                    "<p title='Bot Sorted Counts' style='font-size:0.5em'>"+bot_sorted_freq+"</p>" +
+                    "<p title='Top Sorted Counts' style='font-size:0.5em'>"+top_sorted_freq+"</p>" +
+                    "<p title='Unsorted Counts' style='font-size:0.5em'>"+unsorted_counts+"</p>" +
+
+                    "<p class='details invisible' style='font-size:0.5em'>"+description+"</p>" +
+                    "<a class='no_style_link details invisible' style='font-size: 0.5em' target='_blank' href='https://www.ncbi.nlm.nih.gov/gene/"+gene_id+"'>See NCBI</a>"+
+                    "<p class='details invisible' style='font-size:0.3em'>"+summary+"</p>" +
+                    "</div>"
+                );
+                counter += 1;
+                // console.log(counter);
+                // if (counter >= 1000){
+                //     break;
+                // }
             };
         } else {
             console.log("No data type selected.");
@@ -660,6 +717,8 @@ $( document ).ready( function() {
                     </option>
             </select>
             <input name="result_file" id="result_file_upload" style="display: none;" class="file_upload" type="file"/>
+            Number of datapoints to load:
+            <input name="datapoints" class="form-control file_select" value=1000 type="number" />
         </div>
     </div>
     <button type="submit" id="load_result" class="btn btn-info"><i class="fas fa-chart-line"></i> Load Analysis</button>
@@ -705,7 +764,7 @@ $( document ).ready( function() {
 
         <br>
         <div class="form-group">
-        Display settings:
+        Sort by:
             <select name="display_setting" id="display_settings_select" class="file_select form-control">
                     <option>
                         Mageck
@@ -716,7 +775,15 @@ $( document ).ready( function() {
                     <option>
                         Fischer Exact
                     </option>
-
+                    <option>
+                        Sorted or Top Sorted Counts
+                    </option>
+                    <option>
+                        Bottom Sorted Counts
+                    </option>
+                    <option>
+                        Unsorted Counts
+                    </option>
             </select>
         </div>
         <input type="text" id="search" placeholder="Search for genes.." title="Type in a name" />

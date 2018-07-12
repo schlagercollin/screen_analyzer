@@ -144,6 +144,29 @@ class parseThread(threading.Thread):
         self.status = "Collapsing to Gene Level..."
         self.genes_result = collapse_to_gene_level(self.guides_result)
 
+        if self.config_analysis["Fischer"] == True:
+            self.fischer_guides_result = self.guides_result.copy()
+            self.fischer_genes_result = self.genes_result.copy()
+
+            self.status = "Computing LFC..."
+            compute_lfc(self.fischer_guides_result)
+            compute_lfc(self.fischer_genes_result)
+
+            self.status = "Computing fischer for guides (this takes a while)..."
+            compute_fischer(self.fischer_guides_result)
+            self.status = "Computing fischer for genes (this also takes a while)..."
+            compute_fischer(self.fischer_genes_result)
+
+            self.fischer_genes_result.sort_values(by=["-log(FDR-Corrected P-Values)"], ascending=False, inplace=True)
+            genes_path = self.output_prefix+"_fischer_gene.csv"
+            self.fischer_genes_result.to_csv(genes_path)
+            self.fischer_guides_result.sort_values(by=["-log(FDR-Corrected P-Values)"], ascending=False, inplace=True)
+            guide_path = self.output_prefix+"_fischer_guide.csv"
+            self.fischer_guides_result.to_csv(guide_path)
+
+            self.genes_result = complete_merge(self.genes_result, self.fischer_genes_result)
+            self.guides_result = complete_merge(self.guides_result, self.fischer_genes_result)
+
         if self.config_analysis["Mageck"] == True:
 
             self.mageck_guides_result = self.guides_result.copy()

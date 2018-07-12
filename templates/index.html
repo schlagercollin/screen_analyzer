@@ -494,10 +494,12 @@ $( document ).ready( function() {
         if (columns.indexOf("-log(pos|p-value)") > -1){
             Plotly.newPlot('plotDiv_mageck', data_mageck, layout_mageck); //create plot
         }
+        if (columns.indexOf("ZScore") > -1){
+            Plotly.newPlot('plotDiv_ratio', data_ratio, layout_ratio);
+        }
         Plotly.newPlot('plotDiv_topCounts', data_topCounts, layout_topCounts); //create plot
         Plotly.newPlot('plotDiv_unsortedCounts', data_unsortedCounts, layout_unsortedCounts); //create plot
         Plotly.newPlot('plotDiv_botCounts', data_botCounts, layout_botCounts); //create plot
-        Plotly.newPlot('plotDiv_ratio', data_ratio, layout_ratio); //create plot
 
 
     };
@@ -677,17 +679,17 @@ $( document ).ready( function() {
 <h3>&nbsp Perform a New Analysis</h3>
     <form id="data_submit" method="post" enctype="multipart/form-data">
     <div>
-        Select Analysis:
+        Select Analysis Type:
         <div class="form-group">
-            <div class="form-control file_select analysis_type">
+            <div class="form-control file_select analysis_type" style="max-width: 330px;">
                 <label class="data_option checkbox-inline">
-                   <input type="checkbox" name="Mageck" value="Mageck">Mageck</input>
+                   <input type="checkbox" name="Mageck" value="Mageck"><span style="margin-left: 10px;">Mageck</span></input>
                  </label>
                  <label class="data_option checkbox-inline">
-                   <input type="checkbox" name="Fischer" value="Fischer">Fischer</input>
+                   <input type="checkbox" name="Fischer" value="Fischer"><span style="margin-left: 10px;">Fischer</span></input>
                  </label>
                  <label class="data_option checkbox-inline">
-                   <input type="checkbox" name="Ratio" value="Ratio">Ratio</input>
+                   <input type="checkbox" name="Ratio" value="Ratio"><span style="margin-left: 10px;">Ratio</span></input>
                  </label>
             </div>
         </div>
