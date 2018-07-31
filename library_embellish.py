@@ -1,6 +1,8 @@
 """Takes a library file and polls NCBI to get some more information
 Uses four cores to split up the API requests.
 For the library file give, this process takes 886.94 seconds (14 minutes)
+
+TODO: batch queries to speed this up.
 """
 
 import csv
