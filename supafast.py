@@ -139,24 +139,34 @@ class parseThread(threading.Thread):
 
     def run(self, lfc=False, fischer=False, mageck=False):
         self.status = "Parsing files..."
+
+        # Create master guides_result dataframe with columns with each file parse output
         self.parse_files()
 
+        # Collapse to gene level
         self.status = "Collapsing to Gene Level..."
         self.genes_result = collapse_to_gene_level(self.guides_result)
 
+        # Run fischer analysis if it's True in the config
         if self.config_analysis["Fischer"] == True:
+            # Copy the master dataframe so we don't mess things up
+            # This shouldn't be how you ultimatley handle this...
             self.fischer_guides_result = self.guides_result.copy()
             self.fischer_genes_result = self.genes_result.copy()
 
+            # Compute lfc for guides and genes
             self.status = "Computing LFC..."
             compute_lfc(self.fischer_guides_result)
             compute_lfc(self.fischer_genes_result)
 
+            # Compute fischer for guides and genes
+            # This takes some significant time. Vectorize?
             self.status = "Computing fischer for guides (this takes a while)..."
             compute_fischer(self.fischer_guides_result)
             self.status = "Computing fischer for genes (this also takes a while)..."
             compute_fischer(self.fischer_genes_result)
 
+            # Sort the values and write the files out to the csv files
             self.fischer_genes_result.sort_values(by=["-log(FDR-Corrected P-Values)"], ascending=False, inplace=True)
             genes_path = self.output_prefix+"_fischer_gene.csv"
             self.fischer_genes_result.to_csv(genes_path)
@@ -164,11 +174,13 @@ class parseThread(threading.Thread):
             guide_path = self.output_prefix+"_fischer_guide.csv"
             self.fischer_guides_result.to_csv(guide_path)
 
+            # Merge back into the master dataframes
             self.genes_result = complete_merge(self.genes_result, self.fischer_genes_result)
             self.guides_result = complete_merge(self.guides_result, self.fischer_genes_result)
 
         if self.config_analysis["Mageck"] == True:
 
+            # Copy the master dataframe files
             self.mageck_guides_result = self.guides_result.copy()
             self.mageck_genes_result = self.genes_result.copy()
 
@@ -180,6 +192,7 @@ class parseThread(threading.Thread):
 
             # Perform mageck Test
             self.perform_mageck_test()
+
             # Ensure that the mageck tests are sorted the same as the genes_result
             # Is this supposed to be "genes"
             # Debug something here regarding index needing to be target gene symbol
