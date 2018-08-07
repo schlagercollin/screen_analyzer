@@ -5,6 +5,10 @@ var dataframe = "Placeholder";
 var display_type = "Placeholder";
 var progress_counter = 0;
 $( document ).ready( function() {
+
+    // Make jinja variables accessible by javascript
+    data_files = {{data_files|tojson}}
+
     $("select.file_select").change(function(){
         var file_upload_field = $(this).siblings("input.file_upload");
         if ($(this).val() == "Upload your own") {
@@ -155,32 +159,72 @@ $( document ).ready( function() {
         }
     });
 
+    var replicate_number = 0;
+
     $(".analysis_type").change( function() {
+        $("#form_div").slideDown();
+    })
+
+    $(".add_replicate").click( function() {
         /* Function to set up correct input fields for a given analysis */
         var analysisVals = [];
         $('.analysis_type :checked').each(function() {
             analysisVals.push($(this).val());
         });
-        console.log("Analyses to be performed: ", analysisVals);
-        $("#file_selection_div").slideUp(250);
-        if (analysisVals.indexOf("Ratio") >= 0) {
-            if (analysisVals.length == 1){
-                $("#unsort_div").addClass("invisible");
-            } else {
-                $("#unsort_div").removeClass("invisible");
-            }
-            $("#bot_sort_div").removeClass("invisible");
-            $("#top_sort_div > span").text("Top Sorted File: ")
-
-        } else {
-            $("#bot_sort_div").addClass("invisible");
-            $("#unsort_div").removeClass("invisible");
-            $("#top_sort_div > span").text("Sorted File: ")
-        }
-        if (analysisVals.length > 0) {
-            $("#file_selection_div").slideDown(250);
-        }
+        replicate_number += 1;
+        addReplicate(replicate_number);
     });
+
+    $(".remove_replicate").click( function() {
+        $("#file_selection_div").children().last().remove();
+        replicate_number -= 1;
+    });
+
+    function addReplicate(rep) {
+        var rep = rep.toString()
+        var forms = ``;
+        forms = generateFormField("Top Sorted Population", "top_sorted_"+rep, "fastq");
+        forms += generateFormField("Bottom Sorted Population", "bot_sorted_"+rep, "fastq");
+        forms += generateFormField("Unsorted Population", "unsorted_"+rep, "fastq");
+
+        var markup =
+        `<div style="margin-bottom: 5px; padding: 5px; max-width: 700px; border: 1px solid #000000; border-radius: 8px;">
+            Rep ${rep}:
+            <div>
+                ${forms}
+            </div>
+        </div>
+        `;
+
+        $("#file_selection_div").append(markup);
+    }
+
+    function generateFormField(title, form_name, data_type){
+        var data_file_options = "";
+        var my_data_files = data_files[data_type];
+        for (var i = 0; i < my_data_files.length; i++) {
+            data_file_options +=
+            `
+                <option>
+                    ${my_data_files[i]}
+                </option>
+            `
+        };
+        var markup = `
+            <div class="form-group">
+                <span>${title}</span>
+                <select name="${form_name}" class="file_select form-control">
+                        ${data_file_options}
+                        <option>
+                            Upload your own
+                        </option>
+                </select>
+                <input name="${form_name}" style="display: none;" class="file_upload form-control file_select" type="file"/>
+
+            </div>`
+
+        return markup
+    }
 
     function displayMageck(mageck_results) {
         //console.log(mageck_results);
@@ -693,53 +737,14 @@ $( document ).ready( function() {
                  </label>
             </div>
         </div>
-        <div id="file_selection_div" style="display: none;">
-            <div class="form-group" id="top_sort_div">
-                <span>Sorted File:</span>
-                <select name="top_sorted" id="top_sorted" class="file_select form-control">
-                    {% for item in data_files['fastq'] %}
-                        <option>
-                            {{ item.capitalize() }}
-                        </option>
-                    {% endfor %}
-                        <option>
-                            Upload your own
-                        </option>
-                </select>
-                <input name="top_sorted" id="qFast_file_upload" style="display: none;" class="file_upload form-control file_select" type="file"/>
-
+        <div id="form_div" style="display: none;">
+            <div class="form-group" id="file_selection_div">
             </div>
-            <div class="form-group invisible" id="bot_sort_div">
-                Bottom Sorted File:
-                <select name="bot_sorted" id="bot_sorted" class="file_select form-control">
-                    {% for item in data_files['fastq'] %}
-                        <option>
-                            {{ item.capitalize() }}
-                        </option>
-                    {% endfor %}
-                        <option>
-                            Upload your own
-                        </option>
-                </select>
-                <input name="bot_sorted" id="qFast_file_upload" style="display: none;" class="form_control file_select file_upload" type="file"/>
-            </div>
-            <div class="form-group" id="unsort_div">
-                Unsorted File:
-                <select name="unsorted" id="unsorted" class="file_select form-control">
-                    {% for item in data_files['fastq'] %}
-                        <option>
-                            {{ item.capitalize() }}
-                        </option>
-                    {% endfor %}
-                        <option>
-                            Upload your own
-                        </option>
-                </select>
-                <input name="unsorted" id="qFast_file_upload" style="display: none;" class="form_control file_select file_upload" type="file"/>
-            </div>
+            <button type=button class="btn add_replicate"><i class="fas fa-plus-square"></i> Add a replicate</button>
+            <button type=button class="btn remove_replicate"><i class="fas fa-trash-alt"></i> Remove last replicate</button>
 
             <div class="form-group" id="guides_div">
-            Guides File:
+                Guides File:
                 <select name="guides" id="library_file_select" class="file_select form-control">
                     {% for item in data_files['library'] %}
                         <option>
@@ -751,11 +756,12 @@ $( document ).ready( function() {
                         </option>
                 </select>
                 <input name="guides" id="library_file_upload" style="display: none;" class="file_upload file_select form-control" type="file" />
-            </div>
+                <br>
             <div class="form-group" id="output_div">
                 Output File Name:
-                    <input name="output" placeholder="Enter an output name here" id="file_name_input" class="file_select form-control" />
+                <input name="output" placeholder="Enter an output name here" id="file_name_input" class="file_select form-control" />
             </div>
+        </div>
 
 <button type="submit" id="analyze" class="btn btn-info"><i class="fas fa-upload"></i> Submit a New Analysis</button><span style="font-style: italic" id="analyze_status"></span>
     </div>

@@ -10,7 +10,9 @@ import time
 import math
 import threading
 import subprocess
-from pdb import set_trace as bp
+from pdb import set_trace as debugger
+import logging
+logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
 
 #idfile = sys.argv[1]
 
@@ -104,7 +106,7 @@ def collapse_to_gene_level(dataframe):
     as opposed to a sum (see aggregation_rule)"""
 
     print("Collapsing to Gene Level...")
-    aggregation_rule = {c : "sum" if (c == "Top Sorted Counts" or c == "Bot Sorted Counts" or c == "Unsorted Counts") else "first" for c in dataframe.columns}
+    aggregation_rule = {c : "sum" if (c.startswith("Rep")) else "first" for c in dataframe.columns}
     aggregation_rule.pop("Target Gene Symbol")
     print(aggregation_rule)
     dataframe.sort_values(by=["sgRNA Target Sequence"], inplace=True)
@@ -113,157 +115,142 @@ def collapse_to_gene_level(dataframe):
     print("Done.")
     return gene_level_df
 
-def create_mageck_input_file(dataframe):
+def create_mageck_input_files(dataframe):
     """ Mageck input format is tab-delimited file """
-    """ sgRNA   \tGene  \tControl1 (unsorted)  \tSorted1   \n"""
-    mageck_data_frame = dataframe[["sgRNA Target Sequence", "Target Gene Symbol", "Unsorted Counts", "Top Sorted Counts"]]
-    return mageck_data_frame
+    """ sgRNA   \tGene  \tControl1 \tControl2 \tRep1 \tRep2   \n"""
+    """ Note: separate inputs for separate sorts [top versus bottom] (for now)"""
 
-class parseThread(threading.Thread):
+
+    # This is kinda janky
+    unsorted_counts_rows = [x for x in dataframe.columns if "Unsorted Population Counts" in x]
+    top_counts_rows = [x for x in dataframe.columns if "Top Sorted Population Counts" in x]
+    bot_counts_rows = [x for x in dataframe.columns if "Bottom Sorted Population Counts" in x]
+
+    top_sorted_mageck_dataframe = dataframe[["sgRNA Target Sequence", "Target Gene Symbol"]+unsorted_counts_rows+top_counts_rows]
+    bot_sorted_mageck_dataframe = dataframe[["sgRNA Target Sequence", "Target Gene Symbol"]+unsorted_counts_rows+bot_counts_rows]
+    return top_sorted_mageck_dataframe, bot_sorted_mageck_dataframe
+
+# class parseThread(threading.Thread):
+class analysisThread():
     def __init__(self, input_files, output_prefix, output_dir):
-        self.config_analysis = {"Mageck": True, "Fischer": False, "Ratio": False} # default values; set in controller.py
-        self.top_sorted_file = top_sorted_file
-        self.bot_sorted_file = bot_sorted_file
-        self.unsorted_file = unsorted_file
+        self.config_analysis = {
+                                "Mageck": True,
+                                "Fischer": False,
+                                 "Ratio": False
+                                }
+
         self.output_prefix = output_prefix
-        self.output_dir = output_dir
         self.output_dir = os.path.join(output_dir, output_prefix)
-        self.library_file = library_file
-        self.control_file = control_file
         self.input_files = input_files
         self.count_status = 0
         self.output = 0
         self.status = "Thread Initialized"
         print("Initializing thread information...")
-        print(self.output_prefix)
-        super().__init__()
+        # super().__init__()
 
-    def run(self, lfc=False, fischer=False, mageck=False):
-        self.status = "Parsing files..."
+    def run(self):
 
-        # Create master guides_result dataframe with columns with each file parse output
-        self.parse_files()
+        integrated_output_guide_level, integrated_output_gene_level = self.getCountData(self.input_files)
 
-        # Collapse to gene level
-        self.status = "Collapsing to Gene Level..."
-        self.genes_result = collapse_to_gene_level(self.guides_result)
-
-        # Run fischer analysis if it's True in the config
-        if self.config_analysis["Fischer"] == True:
-            # Copy the master dataframe so we don't mess things up
-            # This shouldn't be how you ultimatley handle this...
-            self.fischer_guides_result = self.guides_result.copy()
-            self.fischer_genes_result = self.genes_result.copy()
-
-            # Compute lfc for guides and genes
-            self.status = "Computing LFC..."
-            compute_lfc(self.fischer_guides_result)
-            compute_lfc(self.fischer_genes_result)
-
-            # Compute fischer for guides and genes
-            # This takes some significant time. Vectorize?
-            self.status = "Computing fischer for guides (this takes a while)..."
-            compute_fischer(self.fischer_guides_result)
-            self.status = "Computing fischer for genes (this also takes a while)..."
-            compute_fischer(self.fischer_genes_result)
-
-            # Sort the values and write the files out to the csv files
-            self.fischer_genes_result.sort_values(by=["-log(FDR-Corrected P-Values)"], ascending=False, inplace=True)
-            genes_path = self.output_prefix+"_fischer_gene.csv"
-            self.fischer_genes_result.to_csv(genes_path)
-            self.fischer_guides_result.sort_values(by=["-log(FDR-Corrected P-Values)"], ascending=False, inplace=True)
-            guide_path = self.output_prefix+"_fischer_guide.csv"
-            self.fischer_guides_result.to_csv(guide_path)
-
-            # Merge back into the master dataframes
-            self.genes_result = complete_merge(self.genes_result, self.fischer_genes_result)
-            self.guides_result = complete_merge(self.guides_result, self.fischer_genes_result)
+        # Save count data before performing any sort of analyses
+        guide_path = self.output_dir+"_guide_counts.csv"
+        genes_path = self.output_dir+"_gene_counts.csv"
+        integrated_output_guide_level.to_csv(guide_path)
+        integrated_output_gene_level.to_csv(genes_path)
 
         if self.config_analysis["Mageck"] == True:
-
-            # Copy the master dataframe files
-            self.mageck_guides_result = self.guides_result.copy()
-            self.mageck_genes_result = self.genes_result.copy()
-
-            # Create mageck input file
-            self.status = "Creating Mageck input file..."
-            mageck_data_frame = create_mageck_input_file(self.mageck_guides_result.sort_values(by=["sgRNA Target Sequence"]))
-            self.mageck_path = self.output_prefix+"_mageck_input_file.txt"
-            mageck_data_frame.to_csv(self.mageck_path, sep="\t", index=False)
-
-            # Perform mageck Test
-            self.perform_mageck_test()
-
-            # Ensure that the mageck tests are sorted the same as the genes_result
-            # Is this supposed to be "genes"
-            # Debug something here regarding index needing to be target gene symbol
-            self.mageck_genes_result.set_index('Target Gene Symbol', drop=False, inplace=True)
-            self.mageck_result_df.set_index('id', drop=False, inplace=True)
-            #self.genes_result.drop("Non-Targeting-Control", inplace=True) #temporary!
-            self.mageck_genes_result.sort_values(by=["Target Gene Symbol"], ascending=False, inplace=True)
-            self.mageck_result_df.sort_values(by=["id"], ascending=False, inplace=True)
-            self.mageck_genes_result["pos|lfc"] = self.mageck_result_df["pos|lfc"]
-            self.mageck_genes_result["pos|p-value"] = self.mageck_result_df["pos|p-value"]
-            self.mageck_genes_result["-log(pos|p-value)"] = self.mageck_result_df["-log(pos|p-value)"]
-
-            # Sort by mageck p-value and then write out mageck output file
-            self.mageck_genes_result.sort_values(by=["-log(pos|p-value)"], ascending=False, inplace=True)
-            genes_path = self.output_prefix+"_mageck_gene.csv"
-            print(genes_path)
-            self.mageck_genes_result.to_csv(genes_path)
-
-            # Append new analysis to master file
-            self.genes_result = complete_merge(self.genes_result, self.mageck_genes_result)
-
-
+            mageck_result_df = self.perform_mageck_analysis(integrated_output_guide_level)
 
         if self.config_analysis["Ratio"] == True:
-            print(self.guides_result.columns)
             for_ratio_test = self.guides_result[['sgRNA Target Sequence', 'Target Gene Symbol', 'Bot Sorted Counts', 'Top Sorted Counts']].copy()
-            self.ratio_test(for_ratio_test)
+            ratio_result_df = self.ratio_test(for_ratio_test)
+
+        self.guide_output = integrated_output_guide_level
+        self.gene_output = integrated_output_gene_level
+        self.mageck_output = mageck_result_df
+
+        return "Complete"
+
+    def getCountData(self, input_files):
+        self.status = "Parsing files..."
+        # Create master guides_result dataframe with columns with each file parse output
+        integrated_output_guide_level, library_file, control_file = self.parse_input_files(input_files)
+        # Collapse to gene level
+        self.status = "Collapsing to Gene Level..."
+        integrated_output_gene_level = collapse_to_gene_level(integrated_output_guide_level)
+        return integrated_output_guide_level, integrated_output_gene_level
+
+    def parse_input_files(self, input_files):
+
+        # Extract input file information from dictionary
+        fastq_files = input_files["Fastq"]
+        library_file = input_files["Library"]
+        control_file = input_files["Control"]
+
+        self.control_file = control_file
+
+        # Create main dataframe with library information
+        integrated_output_file = create_dataframe(library_file)
 
 
+        # Iterate over fastq files for parsing
+        for replicate_name, replicate_value in fastq_files.items():
+            logging.info("Parsing replicate %s" % replicate_name)
+            for fastq_description, fastq_file in replicate_value.items():
+                logging.info("Parsing file %s" % fastq_description)
+                # Parse the fastq file and convert it to a dataframe
+                parsed_output_dict = parse_qfast(fastq_file, library_file)
+                data_column_name = replicate_name + ": " + fastq_description + " Counts"
+                parsed_output_df = pd.DataFrame.from_dict(parsed_output_dict, orient="index")
+                parsed_output_df.index.name = "sgRNA Target Sequence"
+                parsed_output_df = parsed_output_df.reset_index(drop=False)
+                parsed_output_df = parsed_output_df.rename(columns={0: data_column_name})
 
-        self.genes_result.sort_values(by=["Target Gene Symbol"], inplace=True)
-        genes_path = self.output_prefix+"_gene_enrichment_calculation.csv"
-        print(genes_path)
-        self.genes_result.to_csv(genes_path)
-        self.guides_result.sort_values(by=["sgRNA Target Sequence"], ascending=False, inplace=True)
-        guide_path = self.output_prefix+"_guide_enrichment_calculation.csv"
-        self.guides_result.to_csv(guide_path)
+                # Merge the dataframe
+                integrated_output_file = pd.merge(integrated_output_file, parsed_output_df, on=["sgRNA Target Sequence"], how="left")
+                # import pdb; pdb.set_trace()
 
+        return integrated_output_file, library_file, control_file
 
-        self.status = "Analysis Complete"
-        self.output = self.guides_result, self.genes_result
-        return self.guides_result, self.genes_result
+    def perform_mageck_analysis(self, input_dataframe):
+        # Create mageck input file
+        self.status = "Creating Mageck input file..."
+        top_sorted_mageck_df, bot_sorted_mageck_df = create_mageck_input_files( input_dataframe.sort_values(by=["sgRNA Target Sequence"]) )
+        top_mageck_path = self.output_prefix+"_top_mageck_input_file.txt"
+        bot_mageck_path = self.output_prefix+"_bottom_mageck_input_file.txt"
+        # Save mageck input files to directory
+        top_sorted_mageck_df.to_csv(mageck_path, sep="\t", index=False)
+        bot_sorted_mageck_df.to_csv(mageck_path, sep="\t", index=False)
 
-    def parse_files(self):
-        self.guides_result_df = create_dataframe(self.library_file)
+        # Perform mageck test, passing the file path location of the input file
+        top_mageck_result_df = self.run_mageck_command(top_mageck_path)
+        bot_mageck_result_df = self.run_mageck_command(bot_mageck_path)
 
-        if self.top_sorted_file:
-            self.status = "Parsing top sorted file..."
-            top_sorted_counts_dict = parse_qfast(self.top_sorted_file, self.library_file)
-            add_df_column(self.guides_result_df, top_sorted_counts_dict, "Top Sorted Counts")
+        # Sort by mageck p-value and then write out mageck output file
+        top_mageck_result_df = top_mageck_result_df.sort_values(by=["-log(pos|p-value)"], ascending=False)
+        bot_mageck_result_df = top_mageck_result_df.sort_values(by=["-log(pos|p-value)"], ascending=False)
 
-        if self.bot_sorted_file:
-            self.status = "Parsing top sorted file..."
-            bot_sorted_counts_dict = parse_qfast(self.bot_sorted_file, self.library_file)
-            add_df_column(self.guides_result_df, bot_sorted_counts_dict, "Bot Sorted Counts")
+        top_mageck_output_path = self.output_prefix+"_top_mageck_gene_results.csv"
+        bot_mageck_output_path = self.output_prefix+"_bot_mageck_gene_results.csv"
+        top_mageck_result_df.to_csv(top_mageck_output_path)
+        bot_mageck_result_df.to_csv(bot_mageck_output_path)
 
-        if self.unsorted_file:
-            self.status = "Parsing unsorted file..."
-            unsorted_counts_dict = parse_qfast(self.unsorted_file, self.library_file)
-            add_df_column(self.guides_result_df, unsorted_counts_dict, "Unsorted Counts")
+        return top_mageck_result_df, bot_mageck_result_df
 
-    def perform_mageck_test(self):
-        command = "mageck test -k " + self.mageck_path + " -t 1 -c 0 -n " + str(self.output_dir)+"_mageck" + " --sort-criteria pos --gene-lfc-method alphamean --control-sgrna " + str(self.control_file)
+    def run_mageck_command(self, mageck_path):
+        command = "mageck test -k " + mageck_path + " -t 2,3 -c 0,1 -n " + str(self.output_dir)+"_mageck" + " --sort-criteria pos --gene-lfc-method alphamean --control-sgrna " + str(self.control_file)
         self.status = "Running mageck..."
         #os.chdir(self.output_dir)
         os.system(command)
+
         time.sleep(5); #wait 5 seconds for mageck to be done?
+
         mageck_prefix = self.output_prefix+"_mageck.gene_summary.txt"
-        self.mageck_result_df = pd.read_csv(mageck_prefix, sep="\t")
-        self.mageck_result_df["-log(pos|p-value)"] = self.mageck_result_df["pos|p-value"].apply(lambda x: -1*math.log(x, 10))
+
+        mageck_result_df = pd.read_csv(mageck_prefix, sep="\t")
+        mageck_result_df["-log(pos|p-value)"] = mageck_result_df["pos|p-value"].apply(lambda x: -1*math.log(x, 10))
+
+        return mageck_result_df
         # self.mageck_result_df["pos|lfc"] = self.mageck_result_df["pos|lfc"]
         # p = subprocess.Popen(command, shell=True, cwd=self.output_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         # for line in p.stdout.readlines():
@@ -272,7 +259,6 @@ class parseThread(threading.Thread):
         # p.wait()
 
     def ratio_test(self, df):
-        #df = df.rename(columns={'Sorted Counts': 'bot.Rep1.Reads', 'Unsorted Counts': 'top.Rep1.Reads'})
 
         # Add 1 to reads
         df['Bot Sorted Counts+1'] = df['Bot Sorted Counts']+1
@@ -325,6 +311,8 @@ class parseThread(threading.Thread):
         ratios_path = self.output_prefix+"_ratio_test.csv"
         gene_level_df.to_csv(ratios_path)
 
+        # Add more below
+
         self.genes_result = complete_merge(self.genes_result, gene_level_df)
 
         return ratios
@@ -349,32 +337,37 @@ class parseThread(threading.Thread):
             df[col] = [rank[i] for i in t]
         return df
 
-def main():
-    start = time.time()
-    sorted_file = "/Users/collinschlager/Documents/Rohatgi_Lab/screen_analyzer/tmp/data/fastq/100mM-rep1-Bot5_S2_L001_R1_001.fastq"
-    unsorted_file = "/Users/collinschlager/Documents/Rohatgi_Lab/screen_analyzer/tmp/data/fastq/100mM-rep1-Unsorted_S1_L001_R1_001.fastq"
-    library_file = "/Users/collinschlager/Documents/Rohatgi_Lab/screen_analyzer/tmp/data/library/Mouse_kinome_list_brie_updated.csv"
+if __name__ == "__main__":
+
+    unsorted_rep1_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/Fastq Files/Replicate Files/fastq/Genome-Pos-3T3-Unsorted_S1_L001_R1_001.fastq"
+    top_sorted_rep1_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/Fastq Files/Replicate Files/fastq/Genome-Pos-3T3-SortedTop5_S3_L001_R1_001.fastq"
+    bot_sorted_rep1_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/Fastq Files/Replicate Files/fastq/Genome-Pos-3T3-SortedBot10_S2_L001_R1_001.fastq"
+
+    unsorted_rep2_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/Fastq Files/Replicate Files/fastq/Genome-Pos2-3T3-Unsorted_S1_L001_R1_001.fastq"
+    top_sorted_rep2_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/Fastq Files/Replicate Files/fastq/Genome-Pos2-3T3-Top5_S3_L001_R1_001.fastq"
+    bot_sorted_rep2_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/Fastq Files/Replicate Files/fastq/Genome-Pos2-3T3-Bot10_S2_L001_R1_001.fastq"
+
+    library_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/data/library/Brie_crispr_library_with_controls_for_analysis_updated.csv"
+    control_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Brie-library-controls.txt"
+
+    input_files = {"Fastq":
+                        {"Rep1":
+                            {
+                            "Unsorted Population" : unsorted_rep1_file,
+                            "Top Sorted Population" : top_sorted_rep1_file,
+                            "Bottom Sorted Population" : bot_sorted_rep1_file
+                            },
+                        "Rep2":
+                            {
+                            "Unsorted Population" : unsorted_rep2_file,
+                            "Top Sorted Population" : top_sorted_rep2_file,
+                            "Bottom Sorted Population" : bot_sorted_rep2_file
+                            }
+                        },
+                    "Library": library_file,
+                    "Control": control_file
+    }
+
     output_file = "output.csv"
 
-    guides_result = perform_analysis(sorted_file, unsorted_file, library_file, output_file)
-    genes_result = collapse_to_gene_level(guides_result)
-
-    compute_lfc(guides_result)
-    compute_lfc(genes_result)
-    compute_fischer(guides_result)
-    compute_fischer(genes_result)
-
-    guides_result.sort_values(by=["FDR-Corrected P-Values"], ascending=True, inplace=True)
-    guides_result.to_csv(output_file)
-    genes_result.sort_values(by=["FDR-Corrected P-Values"], ascending=True, inplace=True)
-    genes_result.to_csv("gene_level_"+output_file)
-
-
-    print("All done!")
-    end = time.time()
-    duration = (end - start) # duration is second
-    print("Took %r seconds." % duration)
-    return guides_result, genes_result, duration
-
-if __name__ == "__main__":
-    guides, genes, time_elapsed = main()
+    me = analysisThread(input_files, "test1", "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/mageck_stuff")
