@@ -4,14 +4,33 @@
 var dataframe = "Placeholder";
 var display_type = "Placeholder";
 var progress_counter = 0;
+
+function assert(condition, message) {
+    if (!condition) {
+        message = message || "Assertion failed";
+        if (typeof Error !== "undefined") {
+            throw new Error(message);
+        }
+        throw message; // Fallback
+    }
+};
+
+function userAssert(condition, message) {
+    if (!condition) {
+        message = "Error: "+ message;
+        alert(message)
+    }
+}
+
 $( document ).ready( function() {
 
     // Make jinja variables accessible by javascript
     data_files = {{data_files|tojson}}
 
-    $("select.file_select").change(function(){
+    $(document.body).on('change', '.file_select',function(){
         var file_upload_field = $(this).siblings("input.file_upload");
         if ($(this).val() == "Upload your own") {
+            console.log("Here");
             $(this).animate({
                 'max-width': 17
             }, 200, function() {
@@ -32,18 +51,47 @@ $( document ).ready( function() {
         e.preventDefault();
         //$("#progress_bar").removeClass("invisible");
         //$("#progress_bar").parent().removeClass("invisible");
-        $("#progress_bar").width("50%");
-        $("button#analyze").text("Analyzing...");
-        var formData = new FormData(this);
+        $("button#analyze").text("Uploading files...");
+        var myForm = document.getElementById('data_submit');
+        var formData = new FormData(myForm);
+        formData.append("replicate_number", replicate_number);
+        formData.append("timestamp", Date.now());
+
+        // Do some unit tests
+        userAssert((replicate_number>0),"You need at least one replicate in your analysis submission.");
+
+        $(".progress").fadeIn(200);
+
         $.ajax({
             url: "/analysis/submit",
             type: 'POST',
             data: formData,
+            xhr: function() {
+              var xhr = new window.XMLHttpRequest();
+
+              xhr.upload.addEventListener("progress", function(evt) {
+                if (evt.lengthComputable) {
+                  var percentComplete = evt.loaded / evt.total;
+                  percentComplete = parseInt(percentComplete * 100);
+                  $(".progress-bar").css({width: percentComplete.toString()+"%"});
+                  $(".progress-bar").html(percentComplete.toString()+"%");
+                  console.log(percentComplete);
+
+                  if (percentComplete === 100) {
+                      $("button#analyze").text("Analyzing files...");
+                      $(".progress").fadeOut(200);
+                  }
+
+                }
+              }, false);
+
+              return xhr;
+            },
             success: function(data) {
-                console.log(data);
-                console.log("Success. Checking status.");
-                progress_counter = 0;
-                check_status();
+                console.log(data.result);
+                //console.log("Success. Checking status.");
+                //progress_counter = 0;
+                //check_status();
 
                 //displayResult(data.result); //display the data
             },
@@ -105,7 +153,6 @@ $( document ).ready( function() {
                     console.log(data.status);
                     if (data.status != "Analysis Complete") {
                         console.log(progress_counter);
-                        $("#progress_bar").html(progress_counter.toString()+"%");
                         $("#progress_bar").width(progress_counter.toString()+"%");
                         progress_counter = progress_counter+4;
                         check_status()
@@ -162,8 +209,12 @@ $( document ).ready( function() {
     var replicate_number = 0;
 
     $(".analysis_type").change( function() {
-        $("#form_div").slideDown();
-    })
+        var analysis_values = [];
+        $('.analysis_type :checked').each(function() {
+            analysis_values.push($(this).val());
+        });
+        console.log(analysis_values);
+    });
 
     $(".add_replicate").click( function() {
         /* Function to set up correct input fields for a given analysis */
@@ -178,7 +229,16 @@ $( document ).ready( function() {
     $(".remove_replicate").click( function() {
         $("#file_selection_div").children().last().remove();
         replicate_number -= 1;
+        if (replicate_number < 0){
+            replicate_number = 0;
+        }
     });
+
+    $(".analysis_card").not('input').click( function() {
+        // Toggle checkbox for a click of an analysis card
+        var currently_checked = $(this).find('input').prop('checked');
+        $(this).find('input').prop('checked', !currently_checked);
+    })
 
     function addReplicate(rep) {
         var rep = rep.toString()
@@ -187,20 +247,22 @@ $( document ).ready( function() {
         forms += generateFormField("Bottom Sorted Population", "bot_sorted_"+rep, "fastq");
         forms += generateFormField("Unsorted Population", "unsorted_"+rep, "fastq");
 
-        var markup =
-        `<div style="margin-bottom: 5px; padding: 5px; max-width: 700px; border: 1px solid #000000; border-radius: 8px;">
-            Rep ${rep}:
-            <div>
+        var markup = `
+        <div class="card mb-3" style="max-width: 800px;">
+              <div class="card-header">Replicate ${rep}:</div>
+              <div class="card-body">
                 ${forms}
-            </div>
-        </div>
-        `;
+        </div>`;
 
         $("#file_selection_div").append(markup);
     }
 
     function generateFormField(title, form_name, data_type){
-        var data_file_options = "";
+        var data_file_options = `
+                <option selected>
+                    --
+                </option>
+        `;
         var my_data_files = data_files[data_type];
         for (var i = 0; i < my_data_files.length; i++) {
             data_file_options +=
@@ -211,15 +273,15 @@ $( document ).ready( function() {
             `
         };
         var markup = `
-            <div class="form-group">
-                <span>${title}</span>
-                <select name="${form_name}" class="file_select form-control">
+            <div class="form-group" style="margin-left: 1rem;">
+                <h6>${title}:</h6>
+                <select name="${form_name}" class="file_select form-control inline">
                         ${data_file_options}
                         <option>
                             Upload your own
                         </option>
                 </select>
-                <input name="${form_name}" style="display: none;" class="file_upload form-control file_select" type="file"/>
+                <input name="${form_name}" style="display: none;" class="file_upload inline form-control file_select" type="file"/>
 
             </div>`
 
@@ -718,34 +780,28 @@ $( document ).ready( function() {
 </script>
 
 
-
+<div class="main_wrapper">
 <h1>Genetic Screen Analysis Pipeline</h1>
-<h3>&nbsp Perform a New Analysis</h3>
-    <form id="data_submit" method="post" enctype="multipart/form-data">
+<h3>Perform a New Analysis</h3>
+<form id="data_submit" enctype="multipart/form-data">
     <div>
-        Select Analysis Type:
-        <div class="form-group">
-            <div class="form-control file_select analysis_type" style="max-width: 330px;">
-                <label class="data_option checkbox-inline">
-                   <input type="checkbox" name="Mageck" value="Mageck"><span style="margin-left: 10px;">Mageck</span></input>
-                 </label>
-                 <label class="data_option checkbox-inline">
-                   <input type="checkbox" name="Fischer" value="Fischer"><span style="margin-left: 10px;">Fischer</span></input>
-                 </label>
-                 <label class="data_option checkbox-inline">
-                   <input type="checkbox" name="Ratio" value="Ratio"><span style="margin-left: 10px;">Ratio</span></input>
-                 </label>
+        <div id="form_div">
+            <div>
+                <h6>Name your analysis:</h6>
+                <input name="analysis_name" placeholder="Enter an output name here" class="file_select form-control" />
             </div>
-        </div>
-        <div id="form_div" style="display: none;">
+            <hr align="left" style="max-width:800px;">
             <div class="form-group" id="file_selection_div">
             </div>
             <button type=button class="btn add_replicate"><i class="fas fa-plus-square"></i> Add a replicate</button>
             <button type=button class="btn remove_replicate"><i class="fas fa-trash-alt"></i> Remove last replicate</button>
-
+            <hr align="left" style="max-width:800px;">
             <div class="form-group" id="guides_div">
-                Guides File:
-                <select name="guides" id="library_file_select" class="file_select form-control">
+                <h6>Enter a guide library file:</h6>
+                <select name="guides" id="library_file_select" class="file_select form-control inline">
+                        <option selected>
+                            --
+                        </option>
                     {% for item in data_files['library'] %}
                         <option>
                             {{ item.capitalize() }}
@@ -755,23 +811,85 @@ $( document ).ready( function() {
                             Upload your own
                         </option>
                 </select>
-                <input name="guides" id="library_file_upload" style="display: none;" class="file_upload file_select form-control" type="file" />
-                <br>
-            <div class="form-group" id="output_div">
-                Output File Name:
-                <input name="output" placeholder="Enter an output name here" id="file_name_input" class="file_select form-control" />
+                <input name="guides" id="library_file_upload" style="display: none;" class="file_upload inline file_select form-control" type="file" />
             </div>
+            <div class="form-group" id="control_div">
+                <h6>Enter a controls file:</h6>
+                <select name="guides" id="control_file_select" class="file_select form-control inline">
+                        <option selected>
+                            --
+                        </option>
+                    {% for item in data_files['control'] %}
+                        <option>
+                            {{ item.capitalize() }}
+                        </option>
+                    {% endfor %}
+                        <option>
+                            Upload your own
+                        </option>
+                </select>
+                <input name="control" id="control_file_upload" style="display: none;" class="file_upload inline file_select form-control" type="file" />
+            </div>
+            <hr align="left" style="max-width:700px;">
+            <h6>Select Analysis Type:</h6>
+            <div class="row analysis_type" style="max-width: 800px;">
+                    <div class="col-sm-4">
+                        <div class="analysis_card card mb-3" style="position: relative; max-width: 20rem;">
+                              <div class="card-header">
+                                  Mageck Test
+                                  <input type="checkbox" name="Mageck" value=true style="position: absolute; right: 15px; top: 17px;"></input>
+                              </div>
+                              <div class="card-body">
+                                <p style="font-size: 15px;" class="card-text" style="margin-bottom: 0px;">
+                                    Requires at least one sorted population, an unsorted population, and a guide library file.
+                                </p>
+                              </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="analysis_card card mb-3" style="position: relative; max-width: 20rem;">
+                              <div class="card-header">
+                                  Ratio Test
+                                  <input type="checkbox" name="Ratio" value=true style="position: absolute; right: 15px; top: 17px;"></input>
+                              </div>
+                              <div style="font-size: 15px;" class="card-body">
+                                  <p class="card-text" style="margin-bottom: 0px;">
+                                      Requires two sorted populations (top sorted and bottom sorted) and a guide library file.
+                                  </p>
+                              </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="analysis_card card mb-3" style="position: relative; max-width: 20rem;">
+                              <div class="card-header">
+                                  Fisher Exact Test
+                                  <input type="checkbox" name="Fischer" value=true style="position: absolute; right: 15px; top: 17px;"></input>
+                              </div>
+                              <div style="font-size: 15px;" class="card-body">
+                                  <p class="card-text" style="margin-bottom: 0px;">
+                                      Requires at least one sorted population, an unsorted population, and a guide library file.
+                                  </p>
+                              </div>
+                        </div>
+                    </div>
+                </div>
+                <hr align="left" style="max-width:700px;">
+                <h6>Add notes or comments:</h6>
+                <div style="max-width: 800px;">
+                        <textarea name="notes" class="form-control"></textarea>
+                </div>
         </div>
-
-<button type="submit" id="analyze" class="btn btn-info"><i class="fas fa-upload"></i> Submit a New Analysis</button><span style="font-style: italic" id="analyze_status"></span>
-    </div>
-
-    <div class="invisible progress" style="max-width: 500px; margin: 5px;">
-          <div id="progress_bar" class="invisible progress-bar progress-bar-striped progress-bar-animated" role="progress-bar"
+        <div class="progress" style="display: none; margin-top: 5px; margin-bottom: 5px;">
+          <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
           aria-valuenow="40" aria-valuemin="0" aria-valuemax="100" style="width:40%">
             40%
           </div>
+        </div>
+        <button type="submit" id="analyze" class="btn btn-info" style="margin-top: 5px;"><i class="fas fa-upload"></i> Submit a New Analysis</button><span style="font-style: italic" id="analyze_status"></span>
     </div>
+</form>
+
+</div>
 
     </form>
     {% set graphList = ['plotDiv_mageck', 'plotDiv_ratio', 'plotDiv_topCounts', 'plotDiv_botCounts', 'plotDiv_unsortedCounts', 'plotDiv_fischer'] %}
