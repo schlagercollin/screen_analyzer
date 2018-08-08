@@ -75,58 +75,62 @@ def analysis_submit():
     returns json object for display (see index.html)"""
     if request.method == 'POST':
 
-        # Get top sorted fastq file
-        top_sorted_pop = request.values['top_sorted']
-        if top_sorted_pop == "Upload your own":
-            top_sorted_pop = request.files['top_sorted']
-            top_sorted_pop = upload_file(top_sorted_pop, "fastq")
+        logging.info(request.values)
+        logging.info(request.files)
 
-        # Get bottom sorted fastq file
-        bot_sorted_pop = request.values['bot_sorted']
-        if bot_sorted_pop == "Upload your own":
-            bot_sorted_pop = request.files['bot_sorted']
-            bot_sorted_pop = upload_file(bot_sorted_pop, "fastq")
 
-        # Get unsorted fastq file
-        unsorted_fastq = request.values['unsorted']
-        if unsorted_fastq == "Upload your own":
-            unsorted_fastq = request.files['unsorted']
-            unsorted_fastq = upload_file(unsorted_fastq, "fastq")
-
-        # Get guides file
-        guides = request.values['guides']
-        if 'guides' in request.files and request.files['guides'].filename != '':
-            guides = request.files['guides']
-            print("File: ",guides)
-            guides = upload_file(guides, "library")
-
-        output_file_name = request.values['output']
-
-        if "Mageck" in request.values:
-            print("Mageck enabled!")
-            mageck = True
-        else:
-            mageck = False
-
-        if "Fischer" in request.values:
-            print("Fischer enabled!")
-            fischer = True
-        else:
-            fischer = False
-
-        if "Ratio" in request.values:
-            print("Ratio enabled.")
-            ratio = True
-        else:
-            ratio = False
-
-        # Which analyses to perform
-        config = {"Mageck": mageck, "Fischer": fischer, "Ratio": ratio}
-        print(config)
+        # # Get top sorted fastq file
+        # top_sorted_pop = request.values['top_sorted']
+        # if top_sorted_pop == "Upload your own":
+        #     top_sorted_pop = request.files['top_sorted']
+        #     top_sorted_pop = upload_file(top_sorted_pop, "fastq")
+        #
+        # # Get bottom sorted fastq file
+        # bot_sorted_pop = request.values['bot_sorted']
+        # if bot_sorted_pop == "Upload your own":
+        #     bot_sorted_pop = request.files['bot_sorted']
+        #     bot_sorted_pop = upload_file(bot_sorted_pop, "fastq")
+        #
+        # # Get unsorted fastq file
+        # unsorted_fastq = request.values['unsorted']
+        # if unsorted_fastq == "Upload your own":
+        #     unsorted_fastq = request.files['unsorted']
+        #     unsorted_fastq = upload_file(unsorted_fastq, "fastq")
+        #
+        # # Get guides file
+        # guides = request.values['guides']
+        # if 'guides' in request.files and request.files['guides'].filename != '':
+        #     guides = request.files['guides']
+        #     print("File: ",guides)
+        #     guides = upload_file(guides, "library")
+        #
+        # output_file_name = request.values['output']
+        #
+        # if "Mageck" in request.values:
+        #     print("Mageck enabled!")
+        #     mageck = True
+        # else:
+        #     mageck = False
+        #
+        # if "Fischer" in request.values:
+        #     print("Fischer enabled!")
+        #     fischer = True
+        # else:
+        #     fischer = False
+        #
+        # if "Ratio" in request.values:
+        #     print("Ratio enabled.")
+        #     ratio = True
+        # else:
+        #     ratio = False
+        #
+        # # Which analyses to perform
+        # config = {"Mageck": mageck, "Fischer": fischer, "Ratio": ratio}
+        # print(config)
 
         # Run analyze_data wrapper function
-        output = analyze_data(top_sorted_pop, bot_sorted_pop, unsorted_fastq, output_file_name, guides, config)
-        return jsonify(result=output)
+        # output = analyze_data(top_sorted_pop, bot_sorted_pop, unsorted_fastq, output_file_name, guides, config)
+        return jsonify(result=request.values)
 
 @app.route('/analysis/load', methods=['POST'])
 def analysis_load():
