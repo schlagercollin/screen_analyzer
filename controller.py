@@ -6,23 +6,36 @@ Flask controller for parse fastq webapp.
 import os, json, threading, sys, csv, shutil, subprocess
 from flask import Flask, render_template, request, jsonify, url_for, send_from_directory
 from werkzeug.utils import secure_filename
-#import screen_analysis_BP
-import supafast
+# import supafast
+import collin_screen_analysis_2 as screen_analysis
 import library_embellish
 import time
 import logging
 import pandas as pd
 import copy
-#logging.basicConfig()
-#logging.getLogger().setLevel(logging.DEBUG)
+import yaml
+import shutil
+#
+# werkzeug_log = logging.getLogger('werkzeug')
+# werkzeug_log.setLevel(logging.ERROR)
+
+my_logger = logging.getLogger(__name__)
+my_logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+my_logger.addHandler(ch)
 
 curdir = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(curdir, 'tmp/data')
-print(UPLOAD_FOLDER)
-ALLOWED_EXTENSIONS = ['csv', 'fastq', 'zip']
+ANALYSIS_FOLDER = os.path.join(curdir, 'tmp/Screen_Analyses')
+#print(UPLOAD_FOLDER)
+ALLOWED_EXTENSIONS = ['csv', 'fastq', 'zip', 'txt']
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+def debug(message):
+    return my_logger.debug(message)
 
 def allowed_file(filename):
     """check if uploaded file is allowed"""
@@ -63,9 +76,10 @@ def check_data_files():
     """get data files and return them"""
     data_files = {}
 
-    data_files['fastq'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'fastq')) if is_valid_data_file(f)]
-    data_files['library'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'library')) if is_valid_data_file(f)]
-    data_files['output'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'output')) if is_valid_data_file(f, include_dirs=True)]
+    data_files['fastq'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'Fastq')) if is_valid_data_file(f)]
+    data_files['library'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'Library')) if is_valid_data_file(f)]
+    data_files['output'] = [f for f in os.listdir(ANALYSIS_FOLDER) if is_valid_data_file(f, include_dirs=True)]
+    data_files['control'] = [f for f in os.listdir(os.path.join(UPLOAD_FOLDER, 'Control')) if is_valid_data_file(f)]
     return data_files
 
 
@@ -75,101 +89,242 @@ def analysis_submit():
     returns json object for display (see index.html)"""
     if request.method == 'POST':
 
-        logging.info(request.values)
-        logging.info(request.files)
-
-
-        # # Get top sorted fastq file
-        # top_sorted_pop = request.values['top_sorted']
-        # if top_sorted_pop == "Upload your own":
-        #     top_sorted_pop = request.files['top_sorted']
-        #     top_sorted_pop = upload_file(top_sorted_pop, "fastq")
-        #
-        # # Get bottom sorted fastq file
-        # bot_sorted_pop = request.values['bot_sorted']
-        # if bot_sorted_pop == "Upload your own":
-        #     bot_sorted_pop = request.files['bot_sorted']
-        #     bot_sorted_pop = upload_file(bot_sorted_pop, "fastq")
-        #
-        # # Get unsorted fastq file
-        # unsorted_fastq = request.values['unsorted']
-        # if unsorted_fastq == "Upload your own":
-        #     unsorted_fastq = request.files['unsorted']
-        #     unsorted_fastq = upload_file(unsorted_fastq, "fastq")
-        #
-        # # Get guides file
-        # guides = request.values['guides']
-        # if 'guides' in request.files and request.files['guides'].filename != '':
-        #     guides = request.files['guides']
-        #     print("File: ",guides)
-        #     guides = upload_file(guides, "library")
-        #
-        # output_file_name = request.values['output']
-        #
-        # if "Mageck" in request.values:
-        #     print("Mageck enabled!")
-        #     mageck = True
-        # else:
-        #     mageck = False
-        #
-        # if "Fischer" in request.values:
-        #     print("Fischer enabled!")
-        #     fischer = True
-        # else:
-        #     fischer = False
-        #
-        # if "Ratio" in request.values:
-        #     print("Ratio enabled.")
-        #     ratio = True
-        # else:
-        #     ratio = False
-        #
-        # # Which analyses to perform
-        # config = {"Mageck": mageck, "Fischer": fischer, "Ratio": ratio}
-        # print(config)
+        raw_values, analysis_input_config = get_analysis_files(request)
 
         # Run analyze_data wrapper function
-        # output = analyze_data(top_sorted_pop, bot_sorted_pop, unsorted_fastq, output_file_name, guides, config)
-        return jsonify(result=request.values)
+        output = analyze_data(analysis_input_config)
+        return jsonify(result=output)
+
+def get_analysis_files(request_object):
+    """ Extract analysis files from frontend request object"""
+
+    # Begin to create input files nested dictionary object
+    analysis_input_config = dict()
+
+    # Store how many replicates so we can form our analysis_input_config object
+    number_of_replicates = int(request_object.values["replicate_number"])
+    # For each replicate, there will be a dictionary with the corresponding
+    # fastq files stored in a overarching dictionary called 'Fastq' (below)
+    input_files = dict()
+    input_files["Fastq"] = dict()
+    for replicate_number in range(number_of_replicates):
+        rep = str(replicate_number+1) #so its not zero-indexed
+        replicate_files = dict()
+        replicate_files["Bottom Sorted Population"] = retrieve_request_info(request_object, "bot_sorted_"+rep)
+        replicate_files["Top Sorted Population"] = retrieve_request_info(request_object, "top_sorted_"+rep)
+        replicate_files["Unsorted Population"] = retrieve_request_info(request_object, "unsorted_"+rep)
+        input_files["Fastq"]["Rep"+rep] = replicate_files
+
+    # Get True or False for whether each analysis type was checked
+    analyses_queued = dict()
+    for analysis_type in ["Mageck", "Ratio", "Fischer"]:
+        analyses_queued[analysis_type] = bool(retrieve_request_info(request_object, analysis_type))
+    if analyses_queued["Mageck"]:
+        mageck_analysis_types = dict()
+        mageck_analysis_types["Top_Sorted"] = \
+                            bool(replicate_files["Top Sorted Population"])
+        mageck_analysis_types["Bottom_Sorted"] = \
+                            bool(replicate_files["Bottom Sorted Population"])
+        analyses_queued["Mageck"] = mageck_analysis_types
+
+    analysis_input_config["Analyses Queued"] = analyses_queued
+
+
+    # Extracting remaining file data from request object passed from frontend
+    input_files["Library"] = retrieve_request_info(request_object, "library")
+    input_files["Control"] = retrieve_request_info(request_object, "control")
+    analysis_input_config["Input Files"] = input_files
+
+    # Extracting meta data from request object
+    metadata = dict()
+    metadata["Notes"] = retrieve_request_info(request_object, "notes")
+    metadata["Timestamp"] = retrieve_request_info(request_object, "timestamp")
+    metadata["Replicates"] = number_of_replicates
+    analysis_input_config["Metadata"] = metadata
+
+    folder_name = retrieve_request_info(request_object, "analysis_name")
+
+    # Create analysis folder
+    analysis_folder = create_analysis_folders(folder_name, analysis_input_config["Analyses Queued"])
+    metadata["Analysis Path"] = analysis_folder
+    metadata["Analysis Name"] = os.path.basename(analysis_folder)
+
+    return request.values, analysis_input_config
+
+def save_config_file(config_file, analysis_folder, filename):
+    analysis_config_path = os.path.join(analysis_folder, filename)
+    with open(analysis_config_path, "w") as outfile:
+        # json.dump(analysis_input_config, outfile, sort_keys=True, indent=4, separators=(',',':'))
+        yaml.dump(config_file, outfile, default_flow_style=False)
+
+def retrieve_request_info(request_object, request_item):
+    try:
+        item_value = request_object.values[request_item]
+    except KeyError:
+        debug("%s item not found in request." % request_item)
+        return None
+
+    if item_value == "Upload your own":
+        return request_object.files[request_item]
+    elif item_value == "--" or item_value == "":
+        debug("%s item not found in request." % request_item)
+        return None
+    else:
+        return request_object.values[request_item]
+
+def create_analysis_folders(analysis_name, analysis_types):
+    if os.path.exists(os.path.join(ANALYSIS_FOLDER, analysis_name)):
+        debug("Analysis folder %s already exists." % analysis_name)
+        incremental_value = 1
+        new_analysis_name = analysis_name+"_"+str(incremental_value)
+        while os.path.exists(os.path.join(ANALYSIS_FOLDER, new_analysis_name)):
+            incremental_value += 1
+            new_analysis_name = analysis_name+"_"+str(incremental_value)
+        debug("Creating '%s' instead." % new_analysis_name)
+
+        dir_path = os.path.join(ANALYSIS_FOLDER, new_analysis_name)
+        os.mkdir(dir_path)
+
+    else:
+        debug("Analysis folder %s created." % analysis_name)
+
+        dir_path = os.path.join(ANALYSIS_FOLDER, analysis_name)
+        os.mkdir(dir_path)
+
+    for analysis, checked in analysis_types.items():
+        if checked:
+            os.mkdir(os.path.join(dir_path, analysis))
+
+    return dir_path
+
+def delete_analysis_folder(analysis_name):
+    """Function to delete an analysis folder and all of its contents"""
+    filepath = os.path.join(ANALYSIS_FOLDER, analysis_name)
+    if os.path.isdir(filepath):
+
+        shutil.rmtree(os.path.join(ANALYSIS_FOLDER, analysis_name))
+        return "Deleted"
+    else:
+        return "Folder does not exist"
+
+def list_analysis_folders():
+    """Function to return analysis folder names"""
+    return os.listdir(ANALYSIS_FOLDER)
+
+@app.route('/admin/analysis/remove/<path:dir_name>')
+def delete_analysis_folder_route(dir_name):
+    result = delete_analysis_folder(dir_name)
+    return jsonify(action_result=result, folders=list_analysis_folders())
+
+@app.route('/admin/analysis/removeall')
+def delete_all_analysis_folders_route():
+    for folder in list_analysis_folders():
+        delete_analysis_folder(folder)
+    return jsonify(folders=list_analysis_folders())
+
+@app.route('/admin/analysis/list')
+def list_analysis_folder_route():
+    folders = list_analysis_folders()
+    return jsonify(folders=folders)
+
+
+class Analysis:
+    def __init__(self, analysis_name):
+        self.path = os.path.join(ANALYSIS_FOLDER, analysis_name)
+        self.path_and_prefix = os.path.join(self.path, analysis_name)
+
+        self.get_config_info()
+
+    def get_config_info(self):
+        config_file_path = os.path.join(self.path, "analysis_config.yaml")
+        with open(config_file_path, "r") as config_file:
+            self.config_info = yaml.load(config_file)
+
+        self.analyses_performed = self.config_info["Analyses Queued"]
+        self.name = self.config_info["Metadata"]["Analysis Name"]
+        self.timestamp = self.config_info["Metadata"]["Timestamp"]
+        self.replicates = self.config_info["Metadata"]["Replicates"]
+        self.notes = self.config_info["Metadata"]["Notes"]
+
+        return self.config_info
+
+    def quick_gather(self):
+        gene_counts_file = self.path_and_prefix + "_gene_counts.csv"
+        gene_counts_df = pd.read_csv(gene_counts_file, header=[0,1], index_col=[0])
+        gene_counts_df.columns = flattenHierarchicalCol(gene_counts_df.columns)
+
+        gene_counts_df = gene_counts_df
+        gene_counts_df = gene_counts_df.fillna("--")
+
+        my_columns = [
+                        'Rep1: Top Sorted Population',
+                       'Rep1: Unsorted Population',
+                       'Position of Base After Cut (1-based)',
+                       'Target Context Sequence',
+                        'Exon Number',
+                        'Summary',
+                        'Target Gene Symbol',
+                        'sgRNA Target Sequence',
+                        'Target Gene ID',
+                        'Strand',
+                        'PAM Sequence',
+                        'Target Transcript',
+                        'Rule Set 2 score',
+                        'Genomic Sequence',
+                        'Description'
+                        ]
+
+
+        gene_counts_df = gene_counts_df[ my_columns ]
+
+        data = gene_counts_df.values.tolist()
+        columns = gene_counts_df.columns.tolist()
+
+        return data, columns
+
+    def return_json(self):
+        gene_counts_file = self.path_and_prefix + "_gene_counts.csv"
+        gene_counts_df = pd.read_csv(gene_counts_file, header=[0,1], index_col=[0])
+        gene_counts_df.columns = flattenHierarchicalCol(gene_counts_df.columns)
+        gene_counts_df = gene_counts_df.fillna("--")
+
+        columns = gene_counts_df.columns.tolist()
+        json_data = eval(gene_counts_df.to_json(orient="records"))
+        return json_data, columns
+
+
+
+
+
 
 @app.route('/analysis/load', methods=['POST'])
 def analysis_load():
     """on load click: fetches stashed result file or uploads and uses the new one
     returns json object for display (see index.html)"""
     if request.method == 'POST':
-        result_file = request.values['result_file']
-        data_points = int(request.values['datapoints'])
-        # analysis_type = request.values['analysis_type']
-        analysis_type = "ratio"
-        print(result_file)
-        if result_file == "Upload your own":
-            result_file = request.files['result_file']
-            result_file = upload_file(result_file, "result")
+        # Fetch form value: analysis name to load
+        analysis_name = request.values['analysis_name']
+        analysis = Analysis(analysis_name)
+        data, columns = analysis.quick_gather()
 
-        result_file_dir = os.path.join(UPLOAD_FOLDER, "output", result_file)
-        result_file_prefix = os.path.join(UPLOAD_FOLDER, "output", result_file, result_file)
+        print("Passing data to frontend")
+        return jsonify(analysis_info=analysis.config_info, data=data, columns=columns)
 
-        try:
-            contents = os.listdir(result_file_dir)
-            date = time.strftime("%D %H:%M", time.localtime(int(os.path.getctime(result_file_dir))))
-        except:
-            contents = None
-            date = "Unable to fetch date information."
+def load_general_info(output_path, output_name):
+    """function to load count data from a result directory"""
+    config_file_path = os.path.join(output_path, "analysis_config.yaml")
+    with open(config_file_path, "r") as config_file:
+        analysis_config = yaml.load(config_file)
+    return analysis_config, gene_counts_df, guide_counts_df
 
-        gene_enrichment_df, guide_enrichment_df = load_from_dir(result_file_prefix)
+def load_analysis_data(output_path, output_name, analysis_type, number_of_datapoints=1000):
+    """function to load slice of analysis dataframes for quick transfer to frontend"""
+    result_file_prefix = os.path.join(output_path, output_name)
+    gene_counts_file = result_file_prefix + "_gene_counts.csv"
+    guide_counts_file = result_file_prefix + "_guide_counts.csv"
 
-        outputs = get_extracted_data(gene_enrichment_df, number=data_points)
-
-        print("Passing dataframe to client.")
-        return jsonify(outputs=outputs)
-
-def load_from_dir(result_file_prefix):
-    """function to load relevant portions from a directory"""
-    gene_enrichment_file = result_file_prefix + "_gene_enrichment_calculation.csv"
-    guide_enrichment_file = result_file_prefix + "_guide_enrichment_calculation.csv"
-    gene_enrichment_df = pd.read_csv(gene_enrichment_file)
-    guide_enrichment_df = pd.read_csv(guide_enrichment_file)
-    return gene_enrichment_df, guide_enrichment_df
+    gene_counts_df = pd.read_csv(gene_counts_file, header=[0,1], index_col=[0])
+    guide_counts_df = pd.read_csv(guide_counts_file)
 
 def get_extracted_data(dataframe, number=1000):
     """function to sort dataframe and return top <number> of hits for
@@ -199,9 +354,12 @@ def get_extracted_data(dataframe, number=1000):
 def extract_data(dataframe, analysis_type, number=1000):
     """Sorts given dataframe by analysis_type. Slices top 1000 in format passable
     to frontend javascript"""
-    dataframe.sort_values(by=analysis_type, ascending=False, inplace=True)
-    dataframe = dataframe.head(n=number)
-    return str(list(dataframe.T.to_dict().values()))
+    df = dataframe
+    df.columns = flattenHierarchicalCol(df.columns)
+    #assert (analysis_type in df.columns), "Analysis type not found in df columns"
+    df.sort_values(by=analysis_type, ascending=False, inplace=True)
+    df = df.head(n=number)
+    return str(list(df.T.to_dict().values()))
 
 def load_csv_as_list(file_name, skip_header=False, delimiter=','):
     with open(file_name, "r") as csv_file:
@@ -209,6 +367,25 @@ def load_csv_as_list(file_name, skip_header=False, delimiter=','):
         if skip_header == True:
             next(reader)
         return list(reader)
+
+def flattenHierarchicalCol(columns, sep = ': '):
+    """Flattens multi-index columns by joining tuple with separator
+    e.g. ("Rep1", "Unsorted Population") --> "Rep1_Unsorted Population"""
+    flattenedCols = []
+    for column_name in columns.values:
+        if isinstance(column_name, tuple):
+            if column_name[0].startswith("Rep"):
+                flattenedCols.append(sep.join(column_name).rstrip(sep))
+            else:
+                flattenedCols.append(column_name[0])
+        else:
+            flattenedCols.append(column_name)
+    return flattenedCols
+
+def prep_for_javascript(df):
+    """Prepares dataframe in a format that is enterable into dataframe-js"""
+    df.columns = flattenHierarchicalCol(df.columns, sep = '_')
+    return df
 
 @app.route('/downloads/<path:dir_name>', methods=['GET', 'POST'])
 def download(dir_name):
@@ -223,11 +400,10 @@ def download(dir_name):
 def analysis_status():
     if request.method == 'POST':
         result = None
-        status, output_dir = check_status()
-        output_dir = str(output_dir)
+        status, name = check_status()
         if status == "Analysis Complete":
             print("Analysis Confirmed Complete!")
-        return jsonify(status=status, output_dir=output_dir)
+        return jsonify(status=status, name=name)
 
 @app.route('/analysis/status', methods=['POST'])
 def analysis_get_result():
@@ -238,34 +414,46 @@ def analysis_get_result():
 global myThread
 myThread = None
 
-def analyze_data(top_sorted, bot_sorted, unsorted, output, guides, config, control="Brie_Kinome_controls.txt"):
+def convert_to_path(d):
+    """Goes through input file dictionary and converts filenames to filepaths
+    Returns a new dictionary object with the same structure as the input"""
+    new_dict = copy.deepcopy(d)
+    for key, value in d.items():
+        if key == "Fastq":
+            for rep, conditions in d["Fastq"].items():
+                for condition, filename in conditions.items():
+                    if filename:
+                        new_dict["Fastq"][rep][condition] = os.path.join(UPLOAD_FOLDER, "Fastq", filename)
+        else:
+            if value:
+                new_dict[key] = os.path.join(UPLOAD_FOLDER, key, value)
+    return new_dict
+
+def analyze_data(analysis_input):
     global myThread
     """wrapper for parse_qfast function. handles some path information"""
-    print(UPLOAD_FOLDER, sorted, unsorted, output, guides)
 
-    os.mkdir(os.path.join(UPLOAD_FOLDER, 'output', output)) # Make output directory
-    output_dir = os.path.join(UPLOAD_FOLDER, 'output', output) # Set output path to new dir
-    output = os.path.join(UPLOAD_FOLDER, 'output', output, output) # Set output path to new dir
+    # Convert input file names to path name
+    input_file_paths = convert_to_path(analysis_input["Input Files"])
+    analysis_input["Input File Paths"] = input_file_paths
 
-    guides = os.path.join(UPLOAD_FOLDER, 'library', guides) # Get input file paths
-    top_sorted = os.path.join(UPLOAD_FOLDER,'fastq', top_sorted)
-    bot_sorted = os.path.join(UPLOAD_FOLDER, 'fastq', bot_sorted)
-    unsorted = os.path.join(UPLOAD_FOLDER,'fastq', unsorted)
-    control = os.path.join(UPLOAD_FOLDER, control)
-    print("About to start the thread...")
+    analysis_name = analysis_input["Metadata"]["Analysis Name"]
+    output_dir = analysis_input["Metadata"]["Analysis Path"]
+    output_prefix = analysis_name
 
-    myThread = supafast.parseThread(top_sorted, bot_sorted, unsorted, output, guides, output_dir, control_file="Brie_Kinome_controls.txt")
-    myThread.config_analysis = config
-    myThread.start()
+    save_config_file(analysis_input, output_dir, "analysis_config.yaml")
 
-    return True
+    myThread = screen_analysis.analysisThread(analysis_input, output_prefix, output_dir)
+    myThread.run()
+
+    return "Thread Started"
 
 def check_status():
     # Get count status and status of analysis thread
     global myThread
     status = myThread.status
-    output_dir = myThread.output_prefix
-    return status, output_dir
+    name = myThread.analysis_name
+    return status, name
 
 def get_result():
     global myThread
@@ -279,6 +467,10 @@ def index():
     """main index route. just updates current data files and returns them for drop down menu purposes"""
     data_files = check_data_files()
     return render_template("index.html", data_files=data_files)
+
+@app.route('/test')
+def test():
+    return render_template("test.html")
 
 @app.route('/load')
 def load_route():

@@ -4,7 +4,32 @@
 var global_dataframes = "Placeholder";
 var display_type = "Placeholder";
 var progress_counter = 0;
+
+var analysis = "Placeholder";
+
+
+String.prototype.capitalize = function(){
+       return this.replace( /(^|\s)([a-z])/g , function(m,p1,p2){ return p1+p2.toUpperCase(); } );
+};
+
+
 $( document ).ready( function() {
+
+    class Analysis {
+        constructor(analysis_config) {
+            this.analysis_config = analysis_config;
+            this.info = {
+                "Name": analysis_config["Metadata"]["Analysis Name"],
+                "Timestamp": analysis_config["Metadata"]["Timestamp"],
+                "Replicates": analysis_config["Metadata"]["Replicates"],
+                "Analyses Performed": analysis_config["Analyses Queued"]
+            };
+            var time_obj = new Date(parseInt(this.info["Timestamp"]));
+            debugger;
+            this.info["Timestamp"] = time_obj.toLocaleString();
+        }
+    }
+
     $("select.file_select").change(function(){
         var file_upload_field = $(this).siblings("input.file_upload");
         if ($(this).val() == "Upload your own") {
@@ -52,7 +77,8 @@ $( document ).ready( function() {
             contentType: false
         });
     });
-    $("form#result_submit").submit(function(e) {
+
+    $("form#load_submit").submit(function(e) {
         //Submit load data request (controller.analysis_load())
         e.preventDefault();
         $("button#load_result").text("Loading...");
@@ -63,8 +89,9 @@ $( document ).ready( function() {
             data: formData,
             success: function(result) {
                 $("button#load_result").text("Load");
-                displayResult(result["outputs"]);
-                //displayStats(data.sorted_stats, data.unsorted_stats)
+                //analysis = new Analysis(result.analysis_info)
+                createDataTable(result.data, result.columns);
+                //displayAnalysis(analysis);
             },
             error: function(error) {
                 // From responseText (HTML string), extract error message from title element
@@ -79,78 +106,40 @@ $( document ).ready( function() {
         });
     });
 
+    function createDataTable(data, columns){
+        formatted_columns = [];
+        for (var column of columns) {
+            formatted_columns.push( {"title": column} );
+        }
+        debugger;
+        var table = $('#example').DataTable( {
+            data: data,
+            columns: formatted_columns,
+            lengthChange: false,
+            buttons: [ 'copy', 'excel', 'pdf', 'colvis' ],
+            fixedColumns:   {
+                heightMatch: 'none'
+            },
+            columnDefs: [ {
+                targets: "_all",
+                render: $.fn.dataTable.render.ellipsis( 17, true )
+            }]
+        } );
+
+        table.buttons().container()
+            .appendTo( $('div.eight.column:eq(0)', table.table().container()) );
+    }
+
+    function displayAnalysis(analysis){
+        analysis.displayInfo();
+    }
+
     $("#download_result").click(function(){
         var dir_name = $("#result_file_select").val();
         console.log(dir_name);
         $("#download_result").text("Preparing .zip ...");
         $(location).attr('href', '/downloads/'+dir_name)
         $("#download_result").text("Download");
-    });
-
-    function check_status(){
-
-        setTimeout(function(){
-            console.log("Poll for status: ");
-            $.ajax({
-                url: "/analysis/status",
-                type: 'POST',
-                success: function(data) {
-                    $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" />'+data.status); //display progress
-                    console.log(data.status);
-                    if (data.status != "Analysis Complete") {
-                        console.log(progress_counter);
-                        $("#progress_bar").html(progress_counter.toString()+"%");
-                        $("#progress_bar").width(progress_counter.toString()+"%");
-                        progress_counter = progress_counter+4;
-                        check_status()
-
-                    } else {
-                        $("button#analyze").html('<i class="fas fa-upload"></i> Submit a New Analysis"');
-						$("span#analyze_status").text("");
-                        alert("Analysis complete!");
-                        var formData = new FormData();
-                        formData.append('result_file', data.output_dir);
-                        $.ajax({
-                            url: "/analysis/load",
-                            type: 'POST',
-                            data: formData,
-                            success: function(result) {
-                                //console.log(data);
-                                $("#progress_bar").addClass("invisible");
-                                $("#progress_bar").parent().addClass("invisible");
-                                displayResult(result.data); //display the data
-                                //displayStats(data.sorted_stats, data.unsorted_stats)
-                            },
-                            processData: false,
-                            contentType: false
-                        });
-                    };
-                },
-                processData: false,
-                contentType: false,
-            });
-        }, 300);
-    };
-
-    function displayStats(sorted_stats, unsorted_stats) {
-        // Assumes stat types from both are equivalent
-        for (var stat in sorted_stats) {
-            $("#stats_table").append("<tr><td>"+sorted_stats[stat][0]+"</td><td>"+sorted_stats[stat][1]+"</td><td>"+unsorted_stats[stat][1]+"</td></tr>");
-        }
-    }
-
-    $("#display_settings_select").change( function() {
-        old_display_type = display_type
-        display_type = $(this).val();
-        console.log(display_type);
-        try {
-            displayGeneBoxes(display_type);
-        } catch(err) {
-            alert("This analysis cannot be loaded for this file. "
-            +"It's possible that this form of analysis was not performed on this dataset");
-            console.log(err);
-            $(this).val(old_display_type);
-        }
     });
 
     function displayResult(output_dict) {
@@ -646,6 +635,20 @@ $( document ).ready( function() {
 
     }
 
+    $("#display_settings_select").change( function() {
+        old_display_type = display_type
+        display_type = $(this).val();
+        console.log(display_type);
+        try {
+            displayGeneBoxes(display_type);
+        } catch(err) {
+            alert("This analysis cannot be loaded for this file. "
+            +"It's possible that this form of analysis was not performed on this dataset");
+            console.log(err);
+            $(this).val(old_display_type);
+        }
+    });
+
     $("#search").on("keyup", function(){
         //Provides search functionality for genes (filter on keyup)
         var input, filter, container, li, a, i;
@@ -702,11 +705,11 @@ $( document ).ready( function() {
 </script>
 <h1>Genetic Screen Analysis Pipeline</h1>
 <h3>&nbsp Load an Analysis</h3>
-    <form id="result_submit" method="POST" enctype="multipart/form-data">
+    <form id="load_submit" method="POST" enctype="multipart/form-data">
         <div>
         <div class="form-group">
             Output file:
-            <select name="result_file" id="result_file_select" class="file_select form-control">
+            <select name="analysis_name" id="result_file_select" class="file_select form-control">
                 {% for item in data_files['output'] %}
                     <option>
                         {{ item.capitalize() }}
@@ -716,15 +719,21 @@ $( document ).ready( function() {
                         Upload your own
                     </option>
             </select>
-            <input name="result_file" id="result_file_upload" style="display: none;" class="file_upload" type="file"/>
+            <input name="analysis_name" id="result_file_upload" style="display: none;" class="file_upload" type="file"/>
             Number of datapoints to load:
             <input name="datapoints" class="form-control file_select" value=1000 type="number" />
         </div>
-    </div>
-    <button type="submit" id="load_result" class="btn btn-info"><i class="fas fa-chart-line"></i> Load Analysis</button>
-    <button id="download_result" class="btn btn-info"><i class="fas fa-download"></i> Download .zip</button>
+        </div>
+        <button type="submit" id="load_result" class="btn btn-info"><i class="fas fa-chart-line"></i> Load Analysis</button>
+        <button id="download_result" class="btn btn-info"><i class="fas fa-download"></i> Download .zip</button>
     </form>
     <br>
+    <!-- End input stuff -->
+    <!-- Begin output display stuff -->
+    <div id="analysisInfo">
+    </div>
+
+    <table id="example" class="ui celled table" width="100%"></table>
 
     <div class="stats" style="display: none;">
         <table id="stats_table">
@@ -793,94 +802,3 @@ $( document ).ready( function() {
     </div>
 
 {% endblock %}
-
-
-<!--
-<div id="accordion">
-  <div class="card">
-    <div class="card-header" id="headingOne">
-      <h5 class="mb-0">
-        <button class="btn btn-link" data-toggle="collapse" data-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
-          Ratio Test
-        </button>
-      </h5>
-    </div>
-
-    <div id="collapseOne" class="collapse" aria-labelledby="headingOne" data-parent="#accordion">
-      <div class="card-body">
-          <div id="plotDiv_ratio"></div>
-      </div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-header" id="headingTwo">
-      <h5 class="mb-0">
-        <button class="btn btn-link collapsed" data-toggle="collapse" data-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
-          Fischer Test
-        </button>
-      </h5>
-    </div>
-    <div id="collapseTwo" class="collapse" aria-labelledby="headingTwo" data-parent="#accordion">
-      <div class="card-body">
-          <div id="plotDiv_fischer"></div>
-      </div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-header" id="headingThree">
-      <h5 class="mb-0">
-        <button class="btn btn-link collapsed" data-toggle="collapse" data-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
-          Mageck Test
-        </button>
-      </h5>
-    </div>
-    <div id="collapseThree" class="collapse" aria-labelledby="headingThree" data-parent="#accordion">
-      <div class="card-body">
-          <div id="plotDiv_mageck"></div>
-      </div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-header" id="headingFour">
-      <h5 class="mb-0">
-        <button class="btn btn-link collapsed" data-toggle="collapse" data-target="#collapseFour" aria-expanded="false" aria-controls="collapseFour">
-          Sorted Top Population
-        </button>
-      </h5>
-    </div>
-    <div id="collapseFour" class="collapse" aria-labelledby="headingFour" data-parent="#accordion">
-      <div class="card-body">
-          <div id="plotDiv_topCounts"></div>
-      </div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-header" id="headingFive">
-      <h5 class="mb-0">
-        <button class="btn btn-link collapsed" data-toggle="collapse" data-target="#collapseFive" aria-expanded="false" aria-controls="collapseFive">
-          Sorted Bottom Population
-        </button>
-      </h5>
-    </div>
-    <div id="collapseFive" class="collapse" aria-labelledby="headingFive" data-parent="#accordion">
-      <div class="card-body">
-          <div id="plotDiv_botCounts"></div>
-      </div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-header" id="headingSix">
-      <h5 class="mb-0">
-        <button class="btn btn-link collapsed" data-toggle="collapse" data-target="#collapseSix" aria-expanded="false" aria-controls="collapseSix">
-          Unsorted Population
-        </button>
-      </h5>
-    </div>
-    <div id="collapseSix" class="collapse" aria-labelledby="headingSix" data-parent="#accordion">
-      <div class="card-body">
-          <div id="plotDiv_unsortedCounts"></div>
-      </div>
-    </div>
-  </div>
-</div>
--->

@@ -102,6 +102,7 @@
   background-color: #eee;
 }
 
+/*
 table, td, th {
     border: 1px solid #ddd;
     text-align: left;
@@ -115,6 +116,9 @@ table {
 th, td {
     padding: 15px;
 }
+*/
+
+tr {height: 50px; }
 
 .btn-primary.focus, .btn-primary:focus {
    box-shadow: none !important;
