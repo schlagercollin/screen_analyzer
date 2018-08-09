@@ -15,22 +15,33 @@ function assert(condition, message) {
     }
 };
 
-function userAssert(condition, message) {
-    if (!condition) {
-        message = "Error: "+ message;
-        alert(message)
-    }
-}
+
 
 $( document ).ready( function() {
+
+    function alertModal(title, message){
+        $("#alertModalTitle").text(title);
+        $("#alertModalText").text(message);
+        $("#alertModal").modal();
+    }
+    function userAssert(condition, title, message) {
+        if (!condition) {
+            alertModal("Error: "+title, message);
+            if (typeof Error !== "undefined") {
+                throw new Error(title+" : "+message);
+            }
+            throw message; // Fallback (some browsers don't support)
+        }
+    };
 
     // Make jinja variables accessible by javascript
     data_files = {{data_files|tojson}}
 
-    $(document.body).on('change', '.file_select',function(){
+    $(document.body).on('change', '.file_select', function(){
+        //document.body used to listen to dynamically created elements
+
         var file_upload_field = $(this).siblings("input.file_upload");
         if ($(this).val() == "Upload your own") {
-            console.log("Here");
             $(this).animate({
                 'max-width': 17
             }, 200, function() {
@@ -39,11 +50,6 @@ $( document ).ready( function() {
             });
         } else {
             file_upload_field.fadeOut(0);
-            $(this).animate({
-                'max-width': 600
-            }, 200, function () {
-
-            })
         }
     });
     $("form#data_submit").submit(function(e) {
@@ -51,15 +57,20 @@ $( document ).ready( function() {
         e.preventDefault();
         //$("#progress_bar").removeClass("invisible");
         //$("#progress_bar").parent().removeClass("invisible");
-        $("button#analyze").text("Uploading files...");
         var myForm = document.getElementById('data_submit');
         var formData = new FormData(myForm);
         formData.append("replicate_number", replicate_number);
         formData.append("timestamp", Date.now());
-
         // Do some unit tests
-        userAssert((replicate_number>0),"You need at least one replicate in your analysis submission.");
 
+        // Make sure there's replicates
+        userAssert( (replicate_number>0) , "no replicates", "You need at least one replicate in your analysis submission.");
+        // Make sure there's a library file
+        userAssert( (formData.get("guides") != "--") , "no library file", "You need to enter a library file with gRNA information.");
+        // Make sure you have a title
+        userAssert( (formData.get("analysis_name") != ""), "no analysis title", "Please enter a name for this analysis.")
+
+        $("button#analyze").text("Uploading files...");
         $(".progress").fadeIn(200);
 
         $.ajax({
@@ -88,17 +99,15 @@ $( document ).ready( function() {
               return xhr;
             },
             success: function(data) {
-                console.log(data.result);
-                //console.log("Success. Checking status.");
-                //progress_counter = 0;
-                //check_status();
-
-                //displayResult(data.result); //display the data
+                console.log("Success. Checking status.");
+                check_status();
             },
             error: function(data) {
                 console.log("Error submitting.");
                 $("button#analyze").html('<i class="fas fa-upload"></i> Submit a New Analysis"');
-                alert("Error: Output name taken. Please try another.");
+                alertModal("Server Error: could not submit","This is a general error. "+
+                "Please make sure the fields you entered were correct. "+
+                "This error happened server-side, so there might be some technical difficulties.");
             },
             processData: false,
             contentType: false
@@ -117,7 +126,8 @@ $( document ).ready( function() {
                 $("button#load_result").text("Load");
                 console.log("HERE");
                 console.log(result.contents, result.date);
-                displayResult(result.data);
+                debugger;
+                displayResult(result.dataframes);
                 //displayStats(data.sorted_stats, data.unsorted_stats)
             },
             error: function(error) {
@@ -150,28 +160,23 @@ $( document ).ready( function() {
                 type: 'POST',
                 success: function(data) {
                     $("span#analyze_status").html('<img width=20 height=20 src="../static/img/working.gif" />'+data.status); //display progress
-                    console.log(data.status);
+                    console.log(data.name, data.status);
                     if (data.status != "Analysis Complete") {
-                        console.log(progress_counter);
-                        $("#progress_bar").width(progress_counter.toString()+"%");
-                        progress_counter = progress_counter+4;
                         check_status()
-
                     } else {
                         $("button#analyze").html('<i class="fas fa-upload"></i> Submit a New Analysis"');
 						$("span#analyze_status").text("");
-                        alert("Analysis complete!");
+                        alertModal("Analysis complete!","Yay!");
                         var formData = new FormData();
-                        formData.append('result_file', data.output_dir);
+                        formData.append('result_name', data.name);
+                        formData.append('datapoints', 1000);
                         $.ajax({
                             url: "/analysis/load",
                             type: 'POST',
                             data: formData,
                             success: function(result) {
                                 //console.log(data);
-                                $("#progress_bar").addClass("invisible");
-                                $("#progress_bar").parent().addClass("invisible");
-                                displayResult(result.data); //display the data
+                                displayResult(result.dataframes); //display the data
                                 //displayStats(data.sorted_stats, data.unsorted_stats)
                             },
                             processData: false,
@@ -366,246 +371,248 @@ $( document ).ready( function() {
 
     };
 
-    function displayResult(result) {
-        Plotly.purge('plotDiv_mageck');
-        Plotly.purge('plotDiv_botCounts');
-        Plotly.purge('plotDiv_unsortedCounts');
-        Plotly.purge('plotDiv_topCounts');
-        Plotly.purge('plotDiv_ratio');
-        Plotly.purge('plotDiv_fischer');
-        //console.log("HERE");
-        //console.log(result);
-        var nan = NaN;
-        //takes json data from controller and parses it to display the screen data
-        var gene_enrichment = eval(result);
-        dataframe = jd.dfFromObjArray(gene_enrichment);
-        columns = dataframe.names().toArray();
+    function displayResult(output_dict) {
 
-        if (columns.indexOf("-log(pos|p-value)") > -1){
-            display_type ="Mageck";
-            console.log("Mageck was performed.");
-            dataframe = dataframe.sort("-log(pos|p-value)", ascending=true);
-            var x_mageck = dataframe.c("pos|lfc").toArray();
-            var genes_mageck = dataframe.c("Target Gene Symbol").toArray();
-            var y_mageck = dataframe.c("-log(pos|p-value)").toArray();
-        }
-        if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
-            display_type = "Fischer Exact"
-
-            console.log("Fischer was performed.");
-            dataframe = dataframe.sort("-log(FDR-Corrected P-Values)", ascending=true);
-            var x_fischer = dataframe.c("LFC").toArray();
-            var genes_fischer = dataframe.c("Target Gene Symbol").toArray();
-            var y_fischer = dataframe.c("-log(FDR-Corrected P-Values)").toArray();
-        }
-        if (columns.indexOf("ZScore") > -1){
-            display_type = "Ratio Test"
-
-            console.log("Ratio Test was performed.");
-            dataframe = dataframe.sort("ZScore", ascending=false);
-            var x_ratio = dataframe.c("log_MA").toArray();
-            var y_ratio = dataframe.c("ZScore").toArray();
-            var genes_ratio = dataframe.c("Target Gene Symbol").toArray();
-        }
-        $("#display_settings_select").val(display_type);
-        dataframe = dataframe.sort("Top Sorted Counts", ascending=false);
-        var y_topCounts = dataframe.c("Top Sorted Counts").toArray();
-        var genes_topCounts = dataframe.c("Target Gene Symbol").toArray();
-        var x_topCounts = dataframe.c("Target Gene Symbol").toArray();
-
-        dataframe = dataframe.sort("Bot Sorted Counts", ascending=false);
-        var y_botCounts = dataframe.c("Bot Sorted Counts").toArray();
-        var genes_botCounts = dataframe.c("Target Gene Symbol").toArray();
-        var x_botCounts = dataframe.c("Target Gene Symbol").toArray();
-
-        dataframe = dataframe.sort("Unsorted Counts", ascending=false);
-        var y_unsortedCounts = dataframe.c("Unsorted Counts").toArray();
-        var genes_topCounts = dataframe.c("Target Gene Symbol").toArray();
-        var x_unsortedCounts = dataframe.c("Target Gene Symbol").toArray();
-        y_topCounts.shift() // Take out Non-Targeting-Control (will be most counts)
-        x_topCounts.shift()
-        y_unsortedCounts.shift()
-        x_unsortedCounts.shift()
-        y_botCounts.shift()
-        x_botCounts.shift()
-
-        // Extract data from file
-        displayGeneBoxes(display_type)
-        //Plotly stuff
-        var trace_fischer = {
-            x: x_fischer,
-            y: y_fischer,
-            text: genes_fischer,
-            mode: 'markers',
-            marker: {
-                //color: colors,
-                line: {width: 1}
+        //Parse output_dict and strings contained in there to create dataframes
+        var nan = NaN; //needed for the eval of dataframe string
+        for (var propt in output_dict) {
+            obj_array = eval(output_dict[propt]);
+            if (obj_array != false ) { //if there's data, set data in dataframe
+                output_dict[propt] = jd.dfFromObjArray(obj_array);
+            } else { //otherwise, keep field as false
+                output_dict[propt] = false;
             }
         }
-        var trace_topCounts = {
-            x: x_topCounts,
-            y: y_topCounts,
-            mode: 'markers',
-            marker: {
-                //color: colors,
-                line: {width: 1}
-            }
-        }
-        var trace_unsortedCounts = {
-            x: x_unsortedCounts,
-            y: y_unsortedCounts,
-            mode: 'markers',
-            marker: {
-                //color: colors,
-                line: {width: 1}
-            }
-        }
-        var trace_mageck = {
-            x: x_mageck,
-            y: y_mageck,
-            mode: 'markers',
-            text: genes_mageck,
-            marker: {
-                //color: colors,
-                line: {width: 1}
-            }
-        }
-        var trace_botCounts = {
-            x: x_botCounts,
-            y: y_botCounts,
-            text: genes_botCounts,
-            mode: 'markers',
-            marker: {
-                //color: colors,
-                line: {width: 1}
-            }
-        }
-        var trace_ratio = {
-            x: x_ratio,
-            y: y_ratio,
-            text: genes_ratio,
-            mode: 'markers',
-            marker: {
-                //color: colors,
-                line: {width: 1}
-            }
-        }
-        var data_fischer = [ trace_fischer ];
-        var data_topCounts = [ trace_topCounts ];
-        var data_unsortedCounts = [ trace_unsortedCounts ];
-        var data_mageck = [ trace_mageck ];
-        var data_botCounts = [ trace_botCounts ];
-        var data_ratio = [ trace_ratio ];
-        var layout_fischer = {
-            autosize: true,
-            //width: 1300,
-            //height: 600,
-            title: "Fischer Test – log(P-Value) vs Log2(Fold Change))",
-            xaxis: {
-                autorange: true,
-                title: "log2(FoldChange)"
-            },
-            yaxis: {
-                //type: 'log',
-                autorange: true,
-                title: "-log(P-value)"
-            },
-            hovermode:'closest'
-        }
-        var layout_topCounts = {
-            autosize: true,
-            // width: 1300,
-            // height: 600,
-            title: "Top Sorted Frequencies",
-            xaxis: {
-                autorange: true,
-                title: "Gene Target"
-            },
-            yaxis: {
-                type: 'log',
-                autorange: true,
-                title: "Frequency"
-            },
-            hovermode:'closest'
-        }
-        var layout_unsortedCounts = {
-            autosize: true,
-            // width: 1300,
-            // height: 600,
-            title: "Unsorted Frequencies",
-            xaxis: {
-                autorange: true,
-                title: "Gene Target"
-            },
-            yaxis: {
-                type: 'log',
-                autorange: true,
-                title: "Frequency"
-            },
-            hovermode:'closest'
-        }
-        var layout_mageck = {
-            autosize: true,
-            // width: 1300,
-            // height: 600,
-            title: "Mageck – log(P-Value) vs log2(FoldChange)",
-            xaxis: {
-                autorange: true,
-                title: "log2(FoldChange)"
-            },
-            yaxis: {
-                //type: 'log',
-                autorange: true,
-                title: "-log(P-value)"
-            },
-            hovermode:'closest'
-        }
-        var layout_botCounts = {
-            autosize: true,
-            // width: 1300,
-            // height: 600,
-            title: "Bot Sorted Frequencies",
-            xaxis: {
-                autorange: true,
-                title: "Gene Target"
-            },
-            yaxis: {
-                //type: 'log',
-                autorange: true,
-                title: "Frequency"
-            },
-            hovermode:'closest'
-        }
-        var layout_ratio = {
-            autosize: true,
-            //width: 1300,
-            //height: 600,
-            title: "Regev Ratio Z Score",
-            xaxis: {
-                autorange: true,
-                title: "log(Mean Abundance)"
-            },
-            yaxis: {
-                //type: 'log',
-                autorange: true,
-                title: "Z Score"
-            },
-            hovermode:'closest'
-        }
-        $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
 
-        if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
-            Plotly.newPlot('plotDiv_fischer', data_fischer, layout_fischer); //create plot
-        }
-        if (columns.indexOf("-log(pos|p-value)") > -1){
-            Plotly.newPlot('plotDiv_mageck', data_mageck, layout_mageck); //create plot
-        }
-        if (columns.indexOf("ZScore") > -1){
-            Plotly.newPlot('plotDiv_ratio', data_ratio, layout_ratio);
-        }
-        Plotly.newPlot('plotDiv_topCounts', data_topCounts, layout_topCounts); //create plot
-        Plotly.newPlot('plotDiv_unsortedCounts', data_unsortedCounts, layout_unsortedCounts); //create plot
-        Plotly.newPlot('plotDiv_botCounts', data_botCounts, layout_botCounts); //create plot
+        debugger;
+
+        return output_dict
+        //
+        // if (columns.indexOf("-log(pos|p-value)") > -1){
+        //     display_type ="Mageck";
+        //     console.log("Mageck was performed.");
+        //     dataframe = dataframe.sort("-log(pos|p-value)", ascending=true);
+        //     var x_mageck = dataframe.c("pos|lfc").toArray();
+        //     var genes_mageck = dataframe.c("Target Gene Symbol").toArray();
+        //     var y_mageck = dataframe.c("-log(pos|p-value)").toArray();
+        // }
+        // if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
+        //     display_type = "Fischer Exact"
+        //
+        //     console.log("Fischer was performed.");
+        //     dataframe = dataframe.sort("-log(FDR-Corrected P-Values)", ascending=true);
+        //     var x_fischer = dataframe.c("LFC").toArray();
+        //     var genes_fischer = dataframe.c("Target Gene Symbol").toArray();
+        //     var y_fischer = dataframe.c("-log(FDR-Corrected P-Values)").toArray();
+        // }
+        // if (columns.indexOf("ZScore") > -1){
+        //     display_type = "Ratio Test"
+        //
+        //     console.log("Ratio Test was performed.");
+        //     dataframe = dataframe.sort("ZScore", ascending=false);
+        //     var x_ratio = dataframe.c("log_MA").toArray();
+        //     var y_ratio = dataframe.c("ZScore").toArray();
+        //     var genes_ratio = dataframe.c("Target Gene Symbol").toArray();
+        // }
+        // $("#display_settings_select").val(display_type);
+        // dataframe = dataframe.sort("Top Sorted Counts", ascending=false);
+        // var y_topCounts = dataframe.c("Top Sorted Counts").toArray();
+        // var genes_topCounts = dataframe.c("Target Gene Symbol").toArray();
+        // var x_topCounts = dataframe.c("Target Gene Symbol").toArray();
+        //
+        // dataframe = dataframe.sort("Bot Sorted Counts", ascending=false);
+        // var y_botCounts = dataframe.c("Bot Sorted Counts").toArray();
+        // var genes_botCounts = dataframe.c("Target Gene Symbol").toArray();
+        // var x_botCounts = dataframe.c("Target Gene Symbol").toArray();
+        //
+        // dataframe = dataframe.sort("Unsorted Counts", ascending=false);
+        // var y_unsortedCounts = dataframe.c("Unsorted Counts").toArray();
+        // var genes_topCounts = dataframe.c("Target Gene Symbol").toArray();
+        // var x_unsortedCounts = dataframe.c("Target Gene Symbol").toArray();
+        // y_topCounts.shift() // Take out Non-Targeting-Control (will be most counts)
+        // x_topCounts.shift()
+        // y_unsortedCounts.shift()
+        // x_unsortedCounts.shift()
+        // y_botCounts.shift()
+        // x_botCounts.shift()
+        //
+        // // Extract data from file
+        // displayGeneBoxes(display_type)
+        // //Plotly stuff
+        // var trace_fischer = {
+        //     x: x_fischer,
+        //     y: y_fischer,
+        //     text: genes_fischer,
+        //     mode: 'markers',
+        //     marker: {
+        //         //color: colors,
+        //         line: {width: 1}
+        //     }
+        // }
+        // var trace_topCounts = {
+        //     x: x_topCounts,
+        //     y: y_topCounts,
+        //     mode: 'markers',
+        //     marker: {
+        //         //color: colors,
+        //         line: {width: 1}
+        //     }
+        // }
+        // var trace_unsortedCounts = {
+        //     x: x_unsortedCounts,
+        //     y: y_unsortedCounts,
+        //     mode: 'markers',
+        //     marker: {
+        //         //color: colors,
+        //         line: {width: 1}
+        //     }
+        // }
+        // var trace_mageck = {
+        //     x: x_mageck,
+        //     y: y_mageck,
+        //     mode: 'markers',
+        //     text: genes_mageck,
+        //     marker: {
+        //         //color: colors,
+        //         line: {width: 1}
+        //     }
+        // }
+        // var trace_botCounts = {
+        //     x: x_botCounts,
+        //     y: y_botCounts,
+        //     text: genes_botCounts,
+        //     mode: 'markers',
+        //     marker: {
+        //         //color: colors,
+        //         line: {width: 1}
+        //     }
+        // }
+        // var trace_ratio = {
+        //     x: x_ratio,
+        //     y: y_ratio,
+        //     text: genes_ratio,
+        //     mode: 'markers',
+        //     marker: {
+        //         //color: colors,
+        //         line: {width: 1}
+        //     }
+        // }
+        // var data_fischer = [ trace_fischer ];
+        // var data_topCounts = [ trace_topCounts ];
+        // var data_unsortedCounts = [ trace_unsortedCounts ];
+        // var data_mageck = [ trace_mageck ];
+        // var data_botCounts = [ trace_botCounts ];
+        // var data_ratio = [ trace_ratio ];
+        // var layout_fischer = {
+        //     autosize: true,
+        //     //width: 1300,
+        //     //height: 600,
+        //     title: "Fischer Test – log(P-Value) vs Log2(Fold Change))",
+        //     xaxis: {
+        //         autorange: true,
+        //         title: "log2(FoldChange)"
+        //     },
+        //     yaxis: {
+        //         //type: 'log',
+        //         autorange: true,
+        //         title: "-log(P-value)"
+        //     },
+        //     hovermode:'closest'
+        // }
+        // var layout_topCounts = {
+        //     autosize: true,
+        //     // width: 1300,
+        //     // height: 600,
+        //     title: "Top Sorted Frequencies",
+        //     xaxis: {
+        //         autorange: true,
+        //         title: "Gene Target"
+        //     },
+        //     yaxis: {
+        //         type: 'log',
+        //         autorange: true,
+        //         title: "Frequency"
+        //     },
+        //     hovermode:'closest'
+        // }
+        // var layout_unsortedCounts = {
+        //     autosize: true,
+        //     // width: 1300,
+        //     // height: 600,
+        //     title: "Unsorted Frequencies",
+        //     xaxis: {
+        //         autorange: true,
+        //         title: "Gene Target"
+        //     },
+        //     yaxis: {
+        //         type: 'log',
+        //         autorange: true,
+        //         title: "Frequency"
+        //     },
+        //     hovermode:'closest'
+        // }
+        // var layout_mageck = {
+        //     autosize: true,
+        //     // width: 1300,
+        //     // height: 600,
+        //     title: "Mageck – log(P-Value) vs log2(FoldChange)",
+        //     xaxis: {
+        //         autorange: true,
+        //         title: "log2(FoldChange)"
+        //     },
+        //     yaxis: {
+        //         //type: 'log',
+        //         autorange: true,
+        //         title: "-log(P-value)"
+        //     },
+        //     hovermode:'closest'
+        // }
+        // var layout_botCounts = {
+        //     autosize: true,
+        //     // width: 1300,
+        //     // height: 600,
+        //     title: "Bot Sorted Frequencies",
+        //     xaxis: {
+        //         autorange: true,
+        //         title: "Gene Target"
+        //     },
+        //     yaxis: {
+        //         //type: 'log',
+        //         autorange: true,
+        //         title: "Frequency"
+        //     },
+        //     hovermode:'closest'
+        // }
+        // var layout_ratio = {
+        //     autosize: true,
+        //     //width: 1300,
+        //     //height: 600,
+        //     title: "Regev Ratio Z Score",
+        //     xaxis: {
+        //         autorange: true,
+        //         title: "log(Mean Abundance)"
+        //     },
+        //     yaxis: {
+        //         //type: 'log',
+        //         autorange: true,
+        //         title: "Z Score"
+        //     },
+        //     hovermode:'closest'
+        // }
+        // $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
+        //
+        // if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
+        //     Plotly.newPlot('plotDiv_fischer', data_fischer, layout_fischer); //create plot
+        // }
+        // if (columns.indexOf("-log(pos|p-value)") > -1){
+        //     Plotly.newPlot('plotDiv_mageck', data_mageck, layout_mageck); //create plot
+        // }
+        // if (columns.indexOf("ZScore") > -1){
+        //     Plotly.newPlot('plotDiv_ratio', data_ratio, layout_ratio);
+        // }
+        // Plotly.newPlot('plotDiv_topCounts', data_topCounts, layout_topCounts); //create plot
+        // Plotly.newPlot('plotDiv_unsortedCounts', data_unsortedCounts, layout_unsortedCounts); //create plot
+        // Plotly.newPlot('plotDiv_botCounts', data_botCounts, layout_botCounts); //create plot
 
 
     };
@@ -798,7 +805,7 @@ $( document ).ready( function() {
             <hr align="left" style="max-width:800px;">
             <div class="form-group" id="guides_div">
                 <h6>Enter a guide library file:</h6>
-                <select name="guides" id="library_file_select" class="file_select form-control inline">
+                <select name="library" id="library_file_select" class="file_select form-control inline">
                         <option selected>
                             --
                         </option>
@@ -811,11 +818,11 @@ $( document ).ready( function() {
                             Upload your own
                         </option>
                 </select>
-                <input name="guides" id="library_file_upload" style="display: none;" class="file_upload inline file_select form-control" type="file" />
+                <input name="library" id="library_file_upload" style="display: none;" class="file_upload inline file_select form-control" type="file" />
             </div>
             <div class="form-group" id="control_div">
                 <h6>Enter a controls file:</h6>
-                <select name="guides" id="control_file_select" class="file_select form-control inline">
+                <select name="control" id="control_file_select" class="file_select form-control inline">
                         <option selected>
                             --
                         </option>
@@ -841,6 +848,10 @@ $( document ).ready( function() {
                               </div>
                               <div class="card-body">
                                 <p style="font-size: 15px;" class="card-text" style="margin-bottom: 0px;">
+                                    Description of Mageck Test
+                                </p>
+                                <hr>
+                                <p style="font-size: 15px;" class="card-text" style="margin-bottom: 0px;">
                                     Requires at least one sorted population, an unsorted population, and a guide library file.
                                 </p>
                               </div>
@@ -853,6 +864,10 @@ $( document ).ready( function() {
                                   <input type="checkbox" name="Ratio" value=true style="position: absolute; right: 15px; top: 17px;"></input>
                               </div>
                               <div style="font-size: 15px;" class="card-body">
+                                  <p style="font-size: 15px;" class="card-text" style="margin-bottom: 0px;">
+                                      Description of Ratio Test
+                                  </p>
+                                  <hr>
                                   <p class="card-text" style="margin-bottom: 0px;">
                                       Requires two sorted populations (top sorted and bottom sorted) and a guide library file.
                                   </p>
@@ -866,6 +881,10 @@ $( document ).ready( function() {
                                   <input type="checkbox" name="Fischer" value=true style="position: absolute; right: 15px; top: 17px;"></input>
                               </div>
                               <div style="font-size: 15px;" class="card-body">
+                                  <p style="font-size: 15px;" class="card-text" style="margin-bottom: 0px;">
+                                      Description of Fisher Test
+                                  </p>
+                                  <hr>
                                   <p class="card-text" style="margin-bottom: 0px;">
                                       Requires at least one sorted population, an unsorted population, and a guide library file.
                                   </p>
@@ -911,5 +930,24 @@ $( document ).ready( function() {
         <div class="results flex-container">
         </div>
     </div>
+
+    <!-- Modals -->
+    <!-- Small modal -->
+    <div id="alertModal" class="modal" tabindex="-1" role="dialog">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="alertModalTitle">Modal title</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <p class="modal-text" id="alertModalText">Modal body text goes here.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- End Modals -->
 
 {% endblock %}
