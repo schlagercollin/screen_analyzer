@@ -288,6 +288,21 @@ class Analysis:
         gene_counts_df.columns = flattenHierarchicalCol(gene_counts_df.columns)
         gene_counts_df = gene_counts_df.fillna("--")
 
+        # Defines the order of the first couple of columns
+
+        my_columns = [
+            'Target Gene Symbol',
+            'Target Gene ID',
+            'Description',
+            'Summary',
+            'sgRNA Target Sequence',
+            'Rep1: Top Sorted Population',
+            'Rep1: Unsorted Population',
+        ]
+        my_columns += list(set(gene_counts_df.columns) - set(my_columns))
+
+        gene_counts_df = gene_counts_df[ my_columns ]
+
         columns = gene_counts_df.columns.tolist()
         json_data = eval(gene_counts_df.to_json(orient="records"))
         return json_data, columns
@@ -305,7 +320,7 @@ def analysis_load():
         # Fetch form value: analysis name to load
         analysis_name = request.values['analysis_name']
         analysis = Analysis(analysis_name)
-        data, columns = analysis.quick_gather()
+        data, columns = analysis.return_json()
 
         print("Passing data to frontend")
         return jsonify(analysis_info=analysis.config_info, data=data, columns=columns)
