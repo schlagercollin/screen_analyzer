@@ -120,6 +120,39 @@ th, td {
 
 tr {height: 50px; }
 
+.childRow {
+    background-color: #eaeaea;
+    box-shadow: inset 10px 10px 5px -6px rgba(0,0,0,0.12);
+}
+
+.childRow .detailTable {
+    width: 40%; padding-left:50px; display: block; float: left;
+}
+
+div.slider {
+    display: none;
+}
+
+table.dataTable tbody td.no-padding {
+    padding: 0;
+}
+
+.toggle-details-row {
+    cursor: pointer;
+}
+
+.full_length_str {
+    display: none;
+}
+
+.display_full_length .full_length_str {
+    display: inherit;
+}
+
+.display_full_length .shortened {
+    display: none;
+}
+
 .btn-primary.focus, .btn-primary:focus {
    box-shadow: none !important;
 }
