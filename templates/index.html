@@ -113,35 +113,6 @@ $( document ).ready( function() {
             contentType: false
         });
     });
-    $("form#result_submit").submit(function(e) {
-        //Submit load data request (controller.analysis_load())
-        e.preventDefault();
-        $("button#load_result").text("Loading...");
-        var formData = new FormData(this);
-        $.ajax({
-            url: "/analysis/load",
-            type: 'POST',
-            data: formData,
-            success: function(result) {
-                $("button#load_result").text("Load");
-                console.log("HERE");
-                console.log(result.contents, result.date);
-                debugger;
-                displayResult(result.dataframes);
-                //displayStats(data.sorted_stats, data.unsorted_stats)
-            },
-            error: function(error) {
-                // From responseText (HTML string), extract error message from title element
-                var error_HTML_response = $(error.responseText);
-                console.log(error_HTML_response);
-                var error = $(error_HTML_response).filter("title").html();
-                alert("Error loading files from analysis directory. " +
-                "Server says: "+ error);
-            },
-            processData: false,
-            contentType: false
-        });
-    });
 
     $("#download_result").click(function(){
         var dir_name = $("#result_file_select").val();
@@ -167,21 +138,7 @@ $( document ).ready( function() {
                         $("button#analyze").html('<i class="fas fa-upload"></i> Submit a New Analysis"');
 						$("span#analyze_status").text("");
                         alertModal("Analysis complete!","Yay!");
-                        var formData = new FormData();
-                        formData.append('result_name', data.name);
-                        formData.append('datapoints', 1000);
-                        $.ajax({
-                            url: "/analysis/load",
-                            type: 'POST',
-                            data: formData,
-                            success: function(result) {
-                                //console.log(data);
-                                displayResult(result.dataframes); //display the data
-                                //displayStats(data.sorted_stats, data.unsorted_stats)
-                            },
-                            processData: false,
-                            contentType: false
-                        });
+                        window.location.replace("{{ url_for('load_route') }}"+"/"+data.name);
                     };
                 },
                 processData: false,
@@ -368,252 +325,6 @@ $( document ).ready( function() {
         }
         $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
         Plotly.newPlot('plotDiv_mageck', data_mageck, layout_mageck); //create plot
-
-    };
-
-    function displayResult(output_dict) {
-
-        //Parse output_dict and strings contained in there to create dataframes
-        var nan = NaN; //needed for the eval of dataframe string
-        for (var propt in output_dict) {
-            obj_array = eval(output_dict[propt]);
-            if (obj_array != false ) { //if there's data, set data in dataframe
-                output_dict[propt] = jd.dfFromObjArray(obj_array);
-            } else { //otherwise, keep field as false
-                output_dict[propt] = false;
-            }
-        }
-
-        debugger;
-
-        return output_dict
-        //
-        // if (columns.indexOf("-log(pos|p-value)") > -1){
-        //     display_type ="Mageck";
-        //     console.log("Mageck was performed.");
-        //     dataframe = dataframe.sort("-log(pos|p-value)", ascending=true);
-        //     var x_mageck = dataframe.c("pos|lfc").toArray();
-        //     var genes_mageck = dataframe.c("Target Gene Symbol").toArray();
-        //     var y_mageck = dataframe.c("-log(pos|p-value)").toArray();
-        // }
-        // if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
-        //     display_type = "Fischer Exact"
-        //
-        //     console.log("Fischer was performed.");
-        //     dataframe = dataframe.sort("-log(FDR-Corrected P-Values)", ascending=true);
-        //     var x_fischer = dataframe.c("LFC").toArray();
-        //     var genes_fischer = dataframe.c("Target Gene Symbol").toArray();
-        //     var y_fischer = dataframe.c("-log(FDR-Corrected P-Values)").toArray();
-        // }
-        // if (columns.indexOf("ZScore") > -1){
-        //     display_type = "Ratio Test"
-        //
-        //     console.log("Ratio Test was performed.");
-        //     dataframe = dataframe.sort("ZScore", ascending=false);
-        //     var x_ratio = dataframe.c("log_MA").toArray();
-        //     var y_ratio = dataframe.c("ZScore").toArray();
-        //     var genes_ratio = dataframe.c("Target Gene Symbol").toArray();
-        // }
-        // $("#display_settings_select").val(display_type);
-        // dataframe = dataframe.sort("Top Sorted Counts", ascending=false);
-        // var y_topCounts = dataframe.c("Top Sorted Counts").toArray();
-        // var genes_topCounts = dataframe.c("Target Gene Symbol").toArray();
-        // var x_topCounts = dataframe.c("Target Gene Symbol").toArray();
-        //
-        // dataframe = dataframe.sort("Bot Sorted Counts", ascending=false);
-        // var y_botCounts = dataframe.c("Bot Sorted Counts").toArray();
-        // var genes_botCounts = dataframe.c("Target Gene Symbol").toArray();
-        // var x_botCounts = dataframe.c("Target Gene Symbol").toArray();
-        //
-        // dataframe = dataframe.sort("Unsorted Counts", ascending=false);
-        // var y_unsortedCounts = dataframe.c("Unsorted Counts").toArray();
-        // var genes_topCounts = dataframe.c("Target Gene Symbol").toArray();
-        // var x_unsortedCounts = dataframe.c("Target Gene Symbol").toArray();
-        // y_topCounts.shift() // Take out Non-Targeting-Control (will be most counts)
-        // x_topCounts.shift()
-        // y_unsortedCounts.shift()
-        // x_unsortedCounts.shift()
-        // y_botCounts.shift()
-        // x_botCounts.shift()
-        //
-        // // Extract data from file
-        // displayGeneBoxes(display_type)
-        // //Plotly stuff
-        // var trace_fischer = {
-        //     x: x_fischer,
-        //     y: y_fischer,
-        //     text: genes_fischer,
-        //     mode: 'markers',
-        //     marker: {
-        //         //color: colors,
-        //         line: {width: 1}
-        //     }
-        // }
-        // var trace_topCounts = {
-        //     x: x_topCounts,
-        //     y: y_topCounts,
-        //     mode: 'markers',
-        //     marker: {
-        //         //color: colors,
-        //         line: {width: 1}
-        //     }
-        // }
-        // var trace_unsortedCounts = {
-        //     x: x_unsortedCounts,
-        //     y: y_unsortedCounts,
-        //     mode: 'markers',
-        //     marker: {
-        //         //color: colors,
-        //         line: {width: 1}
-        //     }
-        // }
-        // var trace_mageck = {
-        //     x: x_mageck,
-        //     y: y_mageck,
-        //     mode: 'markers',
-        //     text: genes_mageck,
-        //     marker: {
-        //         //color: colors,
-        //         line: {width: 1}
-        //     }
-        // }
-        // var trace_botCounts = {
-        //     x: x_botCounts,
-        //     y: y_botCounts,
-        //     text: genes_botCounts,
-        //     mode: 'markers',
-        //     marker: {
-        //         //color: colors,
-        //         line: {width: 1}
-        //     }
-        // }
-        // var trace_ratio = {
-        //     x: x_ratio,
-        //     y: y_ratio,
-        //     text: genes_ratio,
-        //     mode: 'markers',
-        //     marker: {
-        //         //color: colors,
-        //         line: {width: 1}
-        //     }
-        // }
-        // var data_fischer = [ trace_fischer ];
-        // var data_topCounts = [ trace_topCounts ];
-        // var data_unsortedCounts = [ trace_unsortedCounts ];
-        // var data_mageck = [ trace_mageck ];
-        // var data_botCounts = [ trace_botCounts ];
-        // var data_ratio = [ trace_ratio ];
-        // var layout_fischer = {
-        //     autosize: true,
-        //     //width: 1300,
-        //     //height: 600,
-        //     title: "Fischer Test – log(P-Value) vs Log2(Fold Change))",
-        //     xaxis: {
-        //         autorange: true,
-        //         title: "log2(FoldChange)"
-        //     },
-        //     yaxis: {
-        //         //type: 'log',
-        //         autorange: true,
-        //         title: "-log(P-value)"
-        //     },
-        //     hovermode:'closest'
-        // }
-        // var layout_topCounts = {
-        //     autosize: true,
-        //     // width: 1300,
-        //     // height: 600,
-        //     title: "Top Sorted Frequencies",
-        //     xaxis: {
-        //         autorange: true,
-        //         title: "Gene Target"
-        //     },
-        //     yaxis: {
-        //         type: 'log',
-        //         autorange: true,
-        //         title: "Frequency"
-        //     },
-        //     hovermode:'closest'
-        // }
-        // var layout_unsortedCounts = {
-        //     autosize: true,
-        //     // width: 1300,
-        //     // height: 600,
-        //     title: "Unsorted Frequencies",
-        //     xaxis: {
-        //         autorange: true,
-        //         title: "Gene Target"
-        //     },
-        //     yaxis: {
-        //         type: 'log',
-        //         autorange: true,
-        //         title: "Frequency"
-        //     },
-        //     hovermode:'closest'
-        // }
-        // var layout_mageck = {
-        //     autosize: true,
-        //     // width: 1300,
-        //     // height: 600,
-        //     title: "Mageck – log(P-Value) vs log2(FoldChange)",
-        //     xaxis: {
-        //         autorange: true,
-        //         title: "log2(FoldChange)"
-        //     },
-        //     yaxis: {
-        //         //type: 'log',
-        //         autorange: true,
-        //         title: "-log(P-value)"
-        //     },
-        //     hovermode:'closest'
-        // }
-        // var layout_botCounts = {
-        //     autosize: true,
-        //     // width: 1300,
-        //     // height: 600,
-        //     title: "Bot Sorted Frequencies",
-        //     xaxis: {
-        //         autorange: true,
-        //         title: "Gene Target"
-        //     },
-        //     yaxis: {
-        //         //type: 'log',
-        //         autorange: true,
-        //         title: "Frequency"
-        //     },
-        //     hovermode:'closest'
-        // }
-        // var layout_ratio = {
-        //     autosize: true,
-        //     //width: 1300,
-        //     //height: 600,
-        //     title: "Regev Ratio Z Score",
-        //     xaxis: {
-        //         autorange: true,
-        //         title: "log(Mean Abundance)"
-        //     },
-        //     yaxis: {
-        //         //type: 'log',
-        //         autorange: true,
-        //         title: "Z Score"
-        //     },
-        //     hovermode:'closest'
-        // }
-        // $(".result_wrapper").fadeIn(100); //fade in result_wrapper to display results
-        //
-        // if (columns.indexOf("-log(FDR-Corrected P-Values)") > -1){
-        //     Plotly.newPlot('plotDiv_fischer', data_fischer, layout_fischer); //create plot
-        // }
-        // if (columns.indexOf("-log(pos|p-value)") > -1){
-        //     Plotly.newPlot('plotDiv_mageck', data_mageck, layout_mageck); //create plot
-        // }
-        // if (columns.indexOf("ZScore") > -1){
-        //     Plotly.newPlot('plotDiv_ratio', data_ratio, layout_ratio);
-        // }
-        // Plotly.newPlot('plotDiv_topCounts', data_topCounts, layout_topCounts); //create plot
-        // Plotly.newPlot('plotDiv_unsortedCounts', data_unsortedCounts, layout_unsortedCounts); //create plot
-        // Plotly.newPlot('plotDiv_botCounts', data_botCounts, layout_botCounts); //create plot
-
 
     };
 
@@ -811,7 +522,7 @@ $( document ).ready( function() {
                         </option>
                     {% for item in data_files['library'] %}
                         <option>
-                            {{ item.capitalize() }}
+                            {{ item }}
                         </option>
                     {% endfor %}
                         <option>
@@ -828,7 +539,7 @@ $( document ).ready( function() {
                         </option>
                     {% for item in data_files['control'] %}
                         <option>
-                            {{ item.capitalize() }}
+                            {{ item }}
                         </option>
                     {% endfor %}
                         <option>
@@ -904,7 +615,7 @@ $( document ).ready( function() {
             40%
           </div>
         </div>
-        <button type="submit" id="analyze" class="btn btn-info" style="margin-top: 5px;"><i class="fas fa-upload"></i> Submit a New Analysis</button><span style="font-style: italic" id="analyze_status"></span>
+        <button type="submit" id="analyze" class="btn btn-info" style="margin-top: 5px;"><i class="fas fa-upload"></i> Submit a New Analysis</button><span style="margin-left: 5px;" id="analyze_status"></span>
     </div>
 </form>
 

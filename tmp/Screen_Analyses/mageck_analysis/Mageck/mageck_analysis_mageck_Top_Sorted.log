@@ -1,0 +1,83 @@
+INFO  @ Fri, 10 Aug 2018 19:57:32: Parameters: /usr/local/bin/mageck test -k /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Screen_Analyses/mageck_analysis/Mageck/mageck_analysis_Top_Sorted_mageck_input_file.txt -t 1 -c 0 -n /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Screen_Analyses/mageck_analysis/Mageck/mageck_analysis_mageck_Top_Sorted --sort-criteria pos --gene-lfc-method alphamean --control-sgrna /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/data/Control/Brie_kinome_controls.txt 
+INFO  @ Fri, 10 Aug 2018 19:57:32: Welcome to MAGeCK v0.5.7. Command: test 
+INFO  @ Fri, 10 Aug 2018 19:57:32: Loading count table from /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Screen_Analyses/mageck_analysis/Mageck/mageck_analysis_Top_Sorted_mageck_input_file.txt  
+INFO  @ Fri, 10 Aug 2018 19:57:32: Processing 1 lines.. 
+DEBUG @ Fri, 10 Aug 2018 19:57:32: Parsing error in line 1 (usually the header line). Skip this line. 
+INFO  @ Fri, 10 Aug 2018 19:57:32: Loaded 2952 records. 
+INFO  @ Fri, 10 Aug 2018 19:57:32: Loading R template file: /usr/local/Cellar/python3/3.6.1/Frameworks/Python.framework/Versions/3.6/lib/python3.6/site-packages/mageck/plot_template.RTemplate. 
+INFO  @ Fri, 10 Aug 2018 19:57:32: Loading R template file: /usr/local/Cellar/python3/3.6.1/Frameworks/Python.framework/Versions/3.6/lib/python3.6/site-packages/mageck/plot_template_indvgene.RTemplate. 
+INFO  @ Fri, 10 Aug 2018 19:57:32: Loading Rnw template file: /usr/local/Cellar/python3/3.6.1/Frameworks/Python.framework/Versions/3.6/lib/python3.6/site-packages/mageck/plot_template.Rnw. 
+DEBUG @ Fri, 10 Aug 2018 19:57:32: Setting up the visualization module... 
+DEBUG @ Fri, 10 Aug 2018 19:57:32: Given sample labels: 1 
+DEBUG @ Fri, 10 Aug 2018 19:57:32: Converted index: 1 
+INFO  @ Fri, 10 Aug 2018 19:57:32: Treatment samples:1 
+INFO  @ Fri, 10 Aug 2018 19:57:32: Treatment sample index:1 
+DEBUG @ Fri, 10 Aug 2018 19:57:32: Given sample labels: 0 
+DEBUG @ Fri, 10 Aug 2018 19:57:32: Converted index: 0 
+INFO  @ Fri, 10 Aug 2018 19:57:32: Control samples:0 
+INFO  @ Fri, 10 Aug 2018 19:57:32: Control sample index:0 
+DEBUG @ Fri, 10 Aug 2018 19:57:32: Initial (total) size factor: 1.0218318367951762 0.9790815400136794 
+DEBUG @ Fri, 10 Aug 2018 19:57:32: Median factor: 1.0200593622277523 0.9832893464301392 
+INFO  @ Fri, 10 Aug 2018 19:57:32: Final size factor: 1.0200593622277523 0.9832893464301392 
+DEBUG @ Fri, 10 Aug 2018 19:57:32: Adjusted model: 1	2.6565063020065884 
+INFO  @ Fri, 10 Aug 2018 19:57:32: Adjusted variance calculation: 0.0 for raw variance, 1.0 for modeling 
+INFO  @ Fri, 10 Aug 2018 19:57:32: Use qnorm to reversely calculate sgRNA scores ... 
+DEBUG @ Fri, 10 Aug 2018 19:57:33: lower test FDR cutoff: 0.28082655826558267 
+DEBUG @ Fri, 10 Aug 2018 19:57:33: higher test FDR cutoff: 0.3062330623306233 
+INFO  @ Fri, 10 Aug 2018 19:57:33: Running command: RRA -i /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Screen_Analyses/mageck_analysis/Mageck/mageck_analysis_mageck_Top_Sorted.plow.txt -o /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Screen_Analyses/mageck_analysis/Mageck/mageck_analysis_mageck_Top_Sorted.gene.low.txt -p 0.28082655826558267 --control /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/data/Control/Brie_kinome_controls.txt --skip-gene NA --skip-gene na  
+INFO  @ Fri, 10 Aug 2018 19:57:33: Command message: 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Welcome to RRA v 0.5.7. 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   101 control sequences loaded. 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Skipping gene NA for permutation ... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Skipping gene na for permutation ... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Reading input file... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Summary: 2949 sgRNAs, 714 genes, 1 lists; skipped sgRNAs:0 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Computing lo-values for each group... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Skipping gene Non-Targeting-Control for permutation ... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Warning: sgRNA  not found in the ranked list.  
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Warning: sgRNA AACCTCGTCTCATGTACGAA not found in the ranked list.  
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Warning: sgRNA AACGTTATAGCTTCGTCTCT not found in the ranked list.  
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Computing false discovery rate... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Increase the number of permutations to 141 to get precise p values. To avoid this, use the --permutation option. 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Total # control sgRNAs: 98 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Permuting genes with 3 sgRNAs... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Permuting genes with 4 sgRNAs... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Number of genes under FDR adjustment: 714 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Saving to output file... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Suppressing the output of gene Non-Targeting-Control since it is negative ontrol genes. 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   RRA completed. 
+INFO  @ Fri, 10 Aug 2018 19:57:33:    
+INFO  @ Fri, 10 Aug 2018 19:57:33: End command message. 
+INFO  @ Fri, 10 Aug 2018 19:57:33: Running command: RRA -i /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Screen_Analyses/mageck_analysis/Mageck/mageck_analysis_mageck_Top_Sorted.phigh.txt -o /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Screen_Analyses/mageck_analysis/Mageck/mageck_analysis_mageck_Top_Sorted.gene.high.txt -p 0.3062330623306233 --control /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/data/Control/Brie_kinome_controls.txt --skip-gene NA --skip-gene na  
+INFO  @ Fri, 10 Aug 2018 19:57:33: Command message: 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Welcome to RRA v 0.5.7. 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   101 control sequences loaded. 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Skipping gene NA for permutation ... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Skipping gene na for permutation ... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Reading input file... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Summary: 2949 sgRNAs, 714 genes, 1 lists; skipped sgRNAs:0 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Computing lo-values for each group... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Skipping gene Non-Targeting-Control for permutation ... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Warning: sgRNA  not found in the ranked list.  
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Warning: sgRNA AACCTCGTCTCATGTACGAA not found in the ranked list.  
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Warning: sgRNA AACGTTATAGCTTCGTCTCT not found in the ranked list.  
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Computing false discovery rate... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Increase the number of permutations to 141 to get precise p values. To avoid this, use the --permutation option. 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Total # control sgRNAs: 98 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Permuting genes with 3 sgRNAs... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Permuting genes with 4 sgRNAs... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Number of genes under FDR adjustment: 714 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Saving to output file... 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   Suppressing the output of gene Non-Targeting-Control since it is negative ontrol genes. 
+INFO  @ Fri, 10 Aug 2018 19:57:33:   RRA completed. 
+INFO  @ Fri, 10 Aug 2018 19:57:33:    
+INFO  @ Fri, 10 Aug 2018 19:57:33: End command message. 
+DEBUG @ Fri, 10 Aug 2018 19:57:33: Sorting the merged items by positive selection... 
+INFO  @ Fri, 10 Aug 2018 19:57:33: Loading top 10 genes from /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Screen_Analyses/mageck_analysis/Mageck/mageck_analysis_mageck_Top_Sorted.gene.low.txt: Cdk7,Trim28,Cdk9,Clp1,Lrpprc,Tpr,Lamtor3,Mtor,Pkm,Trim33 
+DEBUG @ Fri, 10 Aug 2018 19:57:33: Column index:3 
+INFO  @ Fri, 10 Aug 2018 19:57:33: Loading top 10 genes from /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Screen_Analyses/mageck_analysis/Mageck/mageck_analysis_mageck_Top_Sorted.gene.high.txt: Stk11,Trrap,Gsk3b,Oxsr1,Nrbp1,Brd2,Tlk2,Bmpr1a,Clk1,Prkar1a 
+DEBUG @ Fri, 10 Aug 2018 19:57:33: Column index:9 
+INFO  @ Fri, 10 Aug 2018 19:57:33: Running command: rm /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Screen_Analyses/mageck_analysis/Mageck/mageck_analysis_mageck_Top_Sorted.plow.txt 
+INFO  @ Fri, 10 Aug 2018 19:57:33: Running command: rm /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Screen_Analyses/mageck_analysis/Mageck/mageck_analysis_mageck_Top_Sorted.phigh.txt 
+INFO  @ Fri, 10 Aug 2018 19:57:33: Running command: rm /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Screen_Analyses/mageck_analysis/Mageck/mageck_analysis_mageck_Top_Sorted.gene.low.txt 
+INFO  @ Fri, 10 Aug 2018 19:57:33: Running command: rm /Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Screen_Analyses/mageck_analysis/Mageck/mageck_analysis_mageck_Top_Sorted.gene.high.txt 

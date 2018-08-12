@@ -10,6 +10,8 @@
 
     <title>Screen Analysis</title>
 
+<!-- CSS -->
+
     <!-- Custom styles for this template -->
     <link href="../static/css/simple-sidebar.css" rel="stylesheet">
     <link href="../static/css/custom.css" rel="stylesheet">
@@ -17,93 +19,40 @@
 
     <!-- Bootstrap core CSS -->
     <link href="../static/vendor/bootstrap-4.1.3-dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Jquery UI CSS -->
     <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
 
-    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/se-2.2.13/jq-3.3.1/jszip-2.5.0/dt-1.10.18/af-2.3.0/b-1.5.2/b-colvis-1.5.2/b-flash-1.5.2/b-html5-1.5.2/b-print-1.5.2/cr-1.5.0/fc-3.2.5/fh-3.1.4/kt-2.4.0/r-2.2.2/rg-1.0.3/rr-1.2.4/sc-1.5.0/sl-1.2.6/datatables.min.css"/>
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='vendor/DataTables/datatables.min.css') }}"/>
 
 
 
-
+<!-- JavaScript -->
 
     <!-- Jquery -->
 	<script src="../static/vendor/jquery/jquery.min.js"></script>
 	<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.18/jquery-ui.min.js"></script>
     <script src="http://malsup.github.com/jquery.form.js"></script>
+
+    <!-- Bootstrap JS -->
     <script src="{{ url_for('static',filename='vendor/bootstrap-4.1.3-dist/js/bootstrap.min.js') }}"></script>
 
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.36/pdfmake.min.js"></script>
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.36/vfs_fonts.js"></script>
-    <script type="text/javascript" src="https://cdn.datatables.net/v/se-2.2.13/jq-3.3.1/jszip-2.5.0/dt-1.10.18/af-2.3.0/b-1.5.2/b-colvis-1.5.2/b-flash-1.5.2/b-html5-1.5.2/b-print-1.5.2/cr-1.5.0/fc-3.2.5/fh-3.1.4/kt-2.4.0/r-2.2.2/rg-1.0.3/rr-1.2.4/sc-1.5.0/sl-1.2.6/datatables.min.js"></script>
-    <!--<script type="text/javascript" src="https:////cdn.datatables.net/plug-ins/1.10.19/dataRender/ellipsis.js"></script>-->
+    {% block javascript %}
+    {% endblock %}
 
+<!-- Misc -->
 
-    <!-- Plotly.js -->
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-
-    <!-- JS Dataframe -->
-    <!--<script src="https://cdn.rawgit.com/Gmousse/dataframe-js/master/dist/dataframe-min.js">
-        var DataFrame = dfjs.DataFrame;
-    </script>-->
-    <script type="text/javascript" src="{{ url_for('static', filename='jsdataframe-min.js') }}"></script>
-    <script type="text/javascript">
-        var jd = jsdataframe;
-    </script>
-    <!--
-    <link rel="stylesheet" type="text/css" href="{{ url_for ('static', filename='DataTables/datatables.min.css') }}"/>
-    <script type="text/javascript" src="{{ url_for ('static', filename='DataTables/datatables.min.js') }}"></script>
--->
-
-
-
-
-
+    <!-- Web Icon -->
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
+    <!-- ViewPort -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <!--
-    <style>
-    .collapsible {
-        background-color: #777;
-        color: white;
-        cursor: pointer;
-        padding: 18px;
-        width: 100%;
-        border: none;
-        text-align: left;
-        outline: none;
-        font-size: 15px;
-    }
-
-    .active, .collapsible:hover {
-        background-color: #555;
-    }
-
-    .collapsible:after {
-        content: '\002B';
-        color: white;
-        font-weight: bold;
-        float: right;
-        margin-left: 5px;
-    }
-
-    .active:after {
-        content: "\2212";
-    }
-
-    .content {
-        padding: 0 18px;
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.2s ease-out;
-        background-color: #f1f1f1;
-    }
-    </style>
--->
-
 
 </head>
 
 <body>
+
 
 
     <div id="wrapper">

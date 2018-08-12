@@ -231,6 +231,7 @@ def list_analysis_folder_route():
 class Analysis:
     def __init__(self, analysis_name):
         self.path = os.path.join(ANALYSIS_FOLDER, analysis_name)
+        self.name = analysis_name
         self.path_and_prefix = os.path.join(self.path, analysis_name)
 
         self.get_config_info()
@@ -241,55 +242,75 @@ class Analysis:
             self.config_info = yaml.load(config_file)
 
         self.analyses_performed = self.config_info["Analyses Queued"]
-        self.name = self.config_info["Metadata"]["Analysis Name"]
+        self.config_name = self.config_info["Metadata"]["Analysis Name"]
         self.timestamp = self.config_info["Metadata"]["Timestamp"]
         self.replicates = self.config_info["Metadata"]["Replicates"]
         self.notes = self.config_info["Metadata"]["Notes"]
 
         return self.config_info
 
-    def quick_gather(self):
-        gene_counts_file = self.path_and_prefix + "_gene_counts.csv"
-        gene_counts_df = pd.read_csv(gene_counts_file, header=[0,1], index_col=[0])
-        gene_counts_df.columns = flattenHierarchicalCol(gene_counts_df.columns)
-
-        gene_counts_df = gene_counts_df
-        gene_counts_df = gene_counts_df.fillna("--")
-
-        my_columns = [
-                        'Rep1: Top Sorted Population',
-                       'Rep1: Unsorted Population',
-                       'Position of Base After Cut (1-based)',
-                       'Target Context Sequence',
-                        'Exon Number',
-                        'Summary',
-                        'Target Gene Symbol',
-                        'sgRNA Target Sequence',
-                        'Target Gene ID',
-                        'Strand',
-                        'PAM Sequence',
-                        'Target Transcript',
-                        'Rule Set 2 score',
-                        'Genomic Sequence',
-                        'Description'
-                        ]
+    def load_specific(self, analysis_type, analysis_column):
+        if analysis_type
 
 
-        gene_counts_df = gene_counts_df[ my_columns ]
-
-        data = gene_counts_df.values.tolist()
-        columns = gene_counts_df.columns.tolist()
-
-        return data, columns
-
-    def return_json(self):
+    def get_gene_counts_data(self):
         gene_counts_file = self.path_and_prefix + "_gene_counts.csv"
         gene_counts_df = pd.read_csv(gene_counts_file, header=[0,1], index_col=[0])
         gene_counts_df.columns = flattenHierarchicalCol(gene_counts_df.columns)
         gene_counts_df = gene_counts_df.fillna("--")
+        return gene_counts_df
 
+    def get_mageck_result(self, level, condition):
+        # Build correct mageck file path based on level and condition
+        mageck_analysis_directory = os.path.join(self.path, "Mageck")
+        mageck_path_and_prefix = os.path.join(mageck_analysis_directory, self.name)
+        mageck_file_path = mageck_path_and_prefix
+        if condition == "Bottom Sorted":
+            mageck_file_path += "_Bottom_Sorted_mageck"
+        elif condition == "Top Sorted":
+            mageck_file_path += "_Top_Sorted_mageck"
+        if level == "Gene":
+            mageck_file_path += "_gene_results.csv"
+        elif level == "Guide":
+            mageck_file_path += "_guide_results.csv"
+
+        assert os.path.exists(mageck_file_path), "Mageck file was not found!"
+
+        mageck_result_df = pd.read_csv(mageck_file_path)
+        mageck_result_df = mageck_result_df.fillna("--")
+
+        return mageck_result_df
+
+    def fetch_combined_data(self, datapoints=1000):
+        gene_counts_df = self.get_gene_counts_data()
+        mageck_statistics_df = self.get_mageck_result("Gene", "Top Sorted")
+        mageck_statistics_df = mageck_statistics_df.set_index("id", drop=True)
+        combined_df = gene_counts_df.join(mageck_statistics_df)
+        combined_df = combined_df.fillna("--")
+
+        initial_col_order = [
+            'Target Gene Symbol'
+        ]
+
+        combined_df = self.truncate_df(combined_df, initial_col_order, datapoints)
+
+        json_data, columns = self.return_json(combined_df)
+
+        return json_data, columns
+
+    def truncate_df(self, dataframe, initial_column_order, datapoints):
+        remaining_cols = list(set(dataframe.columns) - set(initial_column_order))
+        columns = initial_column_order + remaining_cols
+
+        dataframe = dataframe[ columns ]
+        dataframe = dataframe.head(n=int(datapoints))
+
+        return dataframe
+
+
+    def fetch_general_data(self, datapoints=1000):
+        gene_counts_df = self.get_gene_counts_data()
         # Defines the order of the first couple of columns
-
         my_columns = [
             'Target Gene Symbol',
             'Target Gene ID',
@@ -300,16 +321,31 @@ class Analysis:
             'Rep1: Unsorted Population',
         ]
         my_columns += list(set(gene_counts_df.columns) - set(my_columns))
-
         gene_counts_df = gene_counts_df[ my_columns ]
+        gene_counts_df = gene_counts_df.head(n=int(datapoints))
+        json_data, columns = return_json(gene_counts_df)
+        return json_data, columns
 
-        columns = gene_counts_df.columns.tolist()
-        json_data = eval(gene_counts_df.to_json(orient="records"))
+    def return_json(self, dataframe):
+        columns = dataframe.columns.tolist()
+        json_data = eval(dataframe.to_json(orient="records"))
         return json_data, columns
 
 
 
+@app.route('/analysis/load_specific', methods=['POST'])
+def analysis_load_specific():
+    if request.method == 'POST':
 
+        analysis_name = request.values['analysis_name']
+        analysis_type = request.values['analysis_type']
+        analysis_column = request.values['analysis_column']
+
+        analysis = Analysis(analysis_name)
+
+        data = analysis.load_specific(analysis_type, analysis_column)
+
+        return jsonify(data=data)
 
 
 @app.route('/analysis/load', methods=['POST'])
@@ -319,8 +355,12 @@ def analysis_load():
     if request.method == 'POST':
         # Fetch form value: analysis name to load
         analysis_name = request.values['analysis_name']
+        try:
+            datapoints = request.values['datapoints']
+        except:
+            datapoints = 1000
         analysis = Analysis(analysis_name)
-        data, columns = analysis.return_json()
+        data, columns = analysis.fetch_combined_data(datapoints=datapoints)
 
         print("Passing data to frontend")
         return jsonify(analysis_info=analysis.config_info, data=data, columns=columns)
@@ -370,7 +410,7 @@ def extract_data(dataframe, analysis_type, number=1000):
     """Sorts given dataframe by analysis_type. Slices top 1000 in format passable
     to frontend javascript"""
     df = dataframe
-    df.columns = flattenHierarchicalCol(df.columns)
+    df.columns = load_analysis_panelrarchicalCol(df.columns)
     #assert (analysis_type in df.columns), "Analysis type not found in df columns"
     df.sort_values(by=analysis_type, ascending=False, inplace=True)
     df = df.head(n=number)
@@ -404,12 +444,22 @@ def prep_for_javascript(df):
 
 @app.route('/downloads/<path:dir_name>', methods=['GET', 'POST'])
 def download(dir_name):
-    dir_name_path = os.path.join(UPLOAD_FOLDER, "output", dir_name)
-    file_name = dir_name+".zip"
-    directory_path = os.path.join(UPLOAD_FOLDER, "output")
-    print(directory_path, file_name)
-    shutil.make_archive(dir_name_path, 'zip', dir_name_path)
-    return send_from_directory(directory=directory_path, filename=file_name)
+    result_folder_path = os.path.join(ANALYSIS_FOLDER, dir_name)
+    if os.path.isdir(result_folder_path):
+        file_name = dir_name+".zip"
+        shutil.make_archive(result_folder_path, 'zip', result_folder_path)
+        deleteTimer = threading.Timer(10.0, deleteFile, [result_folder_path+".zip"])
+        deleteTimer.start()
+        return send_from_directory(directory=ANALYSIS_FOLDER, filename=file_name)
+    else:
+        error_msg = "Analysis folder %s not found." % dir_name
+        return jsonify(Error=error_msg)
+
+def deleteFile(filename):
+    if os.path.exists(filename):
+        print("DEL %r" % filename)
+        os.remove(filename)
+    return "Deleted"
 
 @app.route('/analysis/status', methods=['POST'])
 def analysis_status():
@@ -459,7 +509,8 @@ def analyze_data(analysis_input):
     save_config_file(analysis_input, output_dir, "analysis_config.yaml")
 
     myThread = screen_analysis.analysisThread(analysis_input, output_prefix, output_dir)
-    myThread.run()
+    # myThread.run()
+    myThread.start()
 
     return "Thread Started"
 
@@ -468,6 +519,10 @@ def check_status():
     global myThread
     status = myThread.status
     name = myThread.analysis_name
+    if status == "Analysis Complete":
+        print("Joining thread...")
+        myThread.join()
+        print("Joined!")
     return status, name
 
 def get_result():
@@ -488,9 +543,10 @@ def test():
     return render_template("test.html")
 
 @app.route('/load')
-def load_route():
+@app.route('/load/<analysis_name>')
+def load_route(analysis_name=None):
     data_files = check_data_files()
-    return render_template("analysis_load.html", data_files=data_files)
+    return render_template("analysis_load.html", data_files=data_files, analysis_name=analysis_name)
 
 class embellishThread(threading.Thread):
     def __init__(self, FILE):

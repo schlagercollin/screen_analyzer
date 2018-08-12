@@ -1,44 +1,74 @@
 {% extends "base.html" %}
+{% block javascript %}
+<!-- DataTable JS -->
+<script type="text/javascript" src="{{ url_for('static', filename='vendor/DataTables/datatables.min.js') }}"></script>
+
+<!-- Plotly JS -->
+<!-- <script src="https://cdn.plot.ly/plotly-latest.min.js"></script> -->
+<script type="text/javascript" src="{{ url_for('static', filename='vendor/plotly/plotly-latest.min.js')}}"></script>
+
+<!-- JS Dataframe -->
+<script type="text/javascript" src="{{ url_for('static', filename='jsdataframe-min.js') }}"></script>
+<script type="text/javascript">
+    var jd = jsdataframe;
+</script>
+{% endblock %}
+
 {% block content %}
 <script type="text/javascript" src="{{ url_for('static', filename='js/analysis_load.js') }}"></script>
+<script type="text/javascript">
+    var analysis_name_from_url = "{{ analysis_name }}";
+    if (analysis_name_from_url != "None"){
+        var formData = new FormData();
+        formData.set("analysis_name", analysis_name_from_url);
+        load_analysis(formData);
+    };
+    history.pushState(null, '', '/load');
+</script>
+
 <h1>Genetic Screen Analysis Pipeline</h1>
-<h3>&nbsp Load an Analysis</h3>
-    <form id="load_submit" method="POST" enctype="multipart/form-data">
-        <div>
-        <div class="form-group">
-            Output file:
-            <select name="analysis_name" id="result_file_select" class="file_select form-control">
-                {% for item in data_files['output'] %}
-                    <option>
-                        {{ item.capitalize() }}
-                    </option>
-                {% endfor %}
-                    <option>
-                        Upload your own
-                    </option>
-            </select>
-            <input name="analysis_name" id="result_file_upload" style="display: none;" class="file_upload" type="file"/>
-            Number of datapoints to load:
-            <input name="datapoints" class="form-control file_select" value=1000 type="number" />
+<div style="max-width: 1000px;">
+    <div class="accordion bottom_margin" id="accordionExample">
+      <div class="card mb-3"  style="border: 1px solid rgba(0,0,0,.125)">
+        <div style="position: relative" class="card-header" id="headingOne" data-toggle="collapse" data-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+              <h4 style="margin-bottom: 0px;">Load a new analysis</h4>
+              <span style="position: absolute; top: 12px; right: 10px;"><i class="far fa-caret-square-down"></i></span>
         </div>
+
+        <div id="collapseOne" class="collapse" aria-labelledby="headingOne" data-parent="#accordionExample">
+          <div class="card-body">
+              <form id="load_submit" method="POST" enctype="multipart/form-data">
+                  <div>
+                  <div class="form-group">
+                      Output file:
+                      <select name="analysis_name" id="result_file_select" class="file_select form-control">
+                          {% for item in data_files['output'] %}
+                              <option>
+                                  {{ item }}
+                              </option>
+                          {% endfor %}
+                              <option>
+                                  Upload your own
+                              </option>
+                      </select>
+                      <input name="analysis_name" id="result_file_upload" style="display: none;" class="file_upload" type="file"/>
+                      Number of datapoints to load:
+                      <input name="datapoints" class="form-control file_select" value=1000 type="number" />
+                  </div>
+                  </div>
+                  <button type="submit" id="load_result" class="btn btn-info"><i class="fas fa-chart-line"></i> Load Analysis</button>
+                  <button id="download_result" class="btn btn-info"><i class="fas fa-download"></i> Download .zip</button>
+              </form>
+          </div>
         </div>
-        <button type="submit" id="load_result" class="btn btn-info"><i class="fas fa-chart-line"></i> Load Analysis</button>
-        <button id="download_result" class="btn btn-info"><i class="fas fa-download"></i> Download .zip</button>
-    </form>
-    <br>
+      </div>
+    </div>
+</div>
     <!-- End input stuff -->
     <!-- Begin output display stuff -->
     <div id="analysisInfo">
     </div>
-    <div style="max-width: 1000px;">
-        <table id="resultTable" class="ui celled table" width="100%"></table>
-    </div>
-
-    <div class="stats" style="display: none;">
-        <table id="stats_table">
-            <th colspan="2">Screen Info:</th>
-        </table>
-    </div>
+    <table id="resultTable" class="ui celled table invisible" width="100%"></table>
     <br>
     <!-- Begin plot stuff -->
     {% set graphList = ['plotDiv_mageck', 'plotDiv_ratio', 'plotDiv_topCounts', 'plotDiv_botCounts', 'plotDiv_unsortedCounts', 'plotDiv_fischer'] %}

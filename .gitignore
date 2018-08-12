@@ -1,12 +1,17 @@
-.idea/
+.dea/
 .DS_Store
 **/.DS_Store
-*.fastq
+#*.fastq
 *.swp
 *.pyc
-*.csv
-*.json
-*.csv.json
+# *.csv
+# *.json
+# *.csv.json
 ./tmp/data/fastq/Genome-Pos-3T3-SortedTop5_S3_L001_R1_001.fastq
 ./tmp/data/fastq/Genome-Pos-3T3-Unsorted_S1_L001_R1_001.fastq
 tmp/data/output/*
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
