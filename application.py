@@ -47,11 +47,11 @@ def upload_file(myfile, file_type):
     if allowed_file(myfile.filename):
         filename = secure_filename(myfile.filename)
         if file_type=="fastq":
-            myfile.save(os.path.join(application.config['UPLOAD_FOLDER'], "fastq", filename))
+            myfile.save(os.path.join(application.config['UPLOAD_FOLDER'], "Fastq", filename))
         elif file_type=="library":
-            myfile.save(os.path.join(application.config['UPLOAD_FOLDER'], "library", filename))
-        elif file_type=="result":
-            myfile.save(os.path.join(application.config['UPLOAD_FOLDER'], "output", filename))
+            myfile.save(os.path.join(application.config['UPLOAD_FOLDER'], "Library", filename))
+        elif file_type=="control":
+            myfile.save(os.path.join(application.config['UPLOAD_FOLDER'], "Control", filename))
         return filename
     else:
         return False
