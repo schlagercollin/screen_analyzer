@@ -15,6 +15,10 @@
     max-width: 800px;
 }
 
+.bottom_margin {
+    margin-bottom: 5px;
+}
+
 .data_option{
     margin-top: .5rem;
 }
@@ -102,31 +106,13 @@
   background-color: #eee;
 }
 
-/*
-table, td, th {
-    border: 1px solid #ddd;
-    text-align: left;
-}
-
-table {
-    border-collapse: collapse;
-    width: 100%;
-}
-
-th, td {
-    padding: 15px;
-}
-*/
-
-tr {height: 50px; }
-
 .childRow {
-    background-color: #eaeaea;
+    background-color: #f9f8f8;
     box-shadow: inset 10px 10px 5px -6px rgba(0,0,0,0.12);
 }
 
 .childRow .detailTable {
-    width: 40%; padding-left:50px; display: block; float: left;
+    width: 30%; padding-left:50px; display: block; float: left;
 }
 
 div.slider {

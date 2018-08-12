@@ -136,8 +136,7 @@ def create_mageck_input_files(raw_data, conditions):
     mageck_input = pivot_table[conditions]
     return mageck_input
 
-# class parseThread(threading.Thread):
-class analysisThread():
+class analysisThread(threading.Thread):
     def __init__(self, analysis_input, output_prefix, output_dir):
         self.config_analysis = analysis_input["Analyses Queued"]
         print("Analyses to be performed: ",self.config_analysis)
@@ -154,28 +153,29 @@ class analysisThread():
         self.replicate_number = int(analysis_input["Metadata"]["Replicates"])
         self.count_status = 0
         self.status = "Thread Initialized"
-        print("Initializing thread information...")
-        # super().__init__()
+        super().__init__()
 
     def run(self):
-
-        logging.info("Begun run sequence.")
 
         # Parse the input files to generate conglomerate dataframes
         integrated_output_guide_level, integrated_output_gene_level = self.getCountData(self.input_files)
 
         # Save count data before performing any sort of analyses
+        self.status = "Saving count data to .csv file..."
         guide_path = self.output_path_prefix+"_guide_counts.csv"
         genes_path = self.output_path_prefix+"_gene_counts.csv"
         integrated_output_guide_level.to_csv(guide_path)
         integrated_output_gene_level.to_csv(genes_path)
 
         if self.config_analysis["Mageck"]:
+            self.status = "Beginning Mageck analysis..."
             for condition, perform_condition_analysis in self.config_analysis["Mageck"].items():
                 if perform_condition_analysis == True:
-                     self.output["Mageck"][condition] = self.perform_mageck_analysis(integrated_output_guide_level, condition)
+                    self.status = "Performing Mageck test for %s" % condition
+                    self.output["Mageck"][condition] = self.perform_mageck_analysis(integrated_output_guide_level, condition)
 
         if self.config_analysis["Ratio"] == True:
+            self.status = "Beginning Ratio analysis..."
             for_ratio_test = self.guides_result[['sgRNA Target Sequence', 'Target Gene Symbol', 'Bot Sorted Counts', 'Top Sorted Counts']].copy()
             ratio_result_df = self.ratio_test(for_ratio_test)
 
@@ -185,7 +185,6 @@ class analysisThread():
 
     def getCountData(self, input_files):
         logging.info("Parsing files...")
-        self.status = "Parsing files..."
         # Create master guides_result dataframe
         integrated_output_guide_level = self.parse_input_files(input_files)
 
@@ -202,13 +201,15 @@ class analysisThread():
         fastq_files = input_files["Fastq"]
 
         # Create main dataframe with library information
+        self.status = "Extracting library information..."
         library_annotations = create_dataframe(self.library_file)
 
         integrated_output_df = pd.DataFrame([])
 
 
         for replicate_name, replicate_value in fastq_files.items():
-            logging.info("Parsing replicate %s" % replicate_name)
+            self.status = "Parsing replicate %s" % replicate_name
+            logging.info(self.status)
 
             for fastq_description, fastq_file in replicate_value.items():
                 if fastq_file == None:
@@ -216,7 +217,8 @@ class analysisThread():
                     logging.info("Skipping...")
                     continue
 
-                logging.info("Parsing file %s" % fastq_description)
+                self.status = "Parsing file %s" % fastq_description
+                logging.info( self.status )
 
                 # Parse the fastq file and convert it to a dataframe
                 parsed_output_dict = parse_qfast(fastq_file, self.library_file)
@@ -243,7 +245,6 @@ class analysisThread():
         self.mageck_output_path_prefix = os.path.join(self.output_path, "Mageck", self.output_prefix)
 
         # Create mageck input file
-        logging.info("Beginning mageck analysis.")
         self.status = "Creating Mageck input file..."
         mageck_df = create_mageck_input_files(input_dataframe, ["Unsorted Population", "Top Sorted Population"])
         mageck_path = self.mageck_output_path_prefix+"_"+condition+"_mageck_input_file.txt"
@@ -254,11 +255,17 @@ class analysisThread():
         # Perform mageck test, passing the file path location of the input file
         mageck_result_df = self.run_mageck_command(mageck_path, condition)
 
-        # Sort by mageck p-value and then write out mageck output file
-        mageck_result_df = mageck_result_df.sort_values(by=["-log(pos|p-value)"], ascending=False)
+        self.status = "Command complete."
 
+        # Sort by mageck p-value and then write out mageck output file
+        mageck_result_df = mageck_result_df.sort_values(by=["pos|-log(p-value)"], ascending=False)
+
+
+        self.status = "Saving Mageck results to .csv file..."
         mageck_output_path = self.mageck_output_path_prefix+"_"+condition+"_mageck_gene_results.csv"
         mageck_result_df.to_csv(mageck_output_path)
+
+        self.status = "Mageck complete."
 
         return mageck_result_df
 
@@ -272,13 +279,14 @@ class analysisThread():
                 " --sort-criteria pos --gene-lfc-method alphamean --control-sgrna "\
                  + str(self.control_file)
 
-        self.status = "Running mageck..."
+        self.status = "Running Mageck command for %s..." % condition
 
         os.system(command)
 
         mageck_prefix = self.mageck_output_path_prefix+"_mageck_"+condition+".gene_summary.txt"
         mageck_result_df = pd.read_csv(mageck_prefix, sep="\t")
-        mageck_result_df["-log(pos|p-value)"] = mageck_result_df["pos|p-value"].apply(lambda x: -1*math.log(x, 10))
+        mageck_result_df["neg|-log(p-value)"] = mageck_result_df["neg|p-value"].apply(lambda x: -1*math.log(x, 10))
+        mageck_result_df["pos|-log(p-value)"] = mageck_result_df["pos|p-value"].apply(lambda x: -1*math.log(x, 10))
 
         return mageck_result_df
 

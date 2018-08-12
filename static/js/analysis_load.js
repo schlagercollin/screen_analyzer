@@ -51,7 +51,172 @@ $.fn.dataTable.render.ellipsis = function ( cutoff, wordbreak, escapeHtml ) {
     };
 };
 
+
+function load_analysis(formData){
+    // formData needs "analysis_name" key
+    $.ajax({
+        url: "/analysis/load",
+        type: 'POST',
+        data: formData,
+        success: function(result) {
+            $("button#load_result").html("<i class='fas fa-chart-line'></i> Load Analysis");
+            createDataTable(result.data, result.columns);
+            $("#collapseOne").collapse('toggle');
+        },
+        error: function(error) {
+            // From responseText (HTML string), extract error message from title element
+            var error_HTML_response = $(error.responseText);
+            console.log(error_HTML_response);
+            var error = $(error_HTML_response).filter("title").html();
+            alert("Error loading files from analysis directory. " +
+            "Server says: "+ error);
+            $("button#load_result").html("<i class='fas fa-chart-line'></i> Load Analysis");
+        },
+        processData: false,
+        contentType: false
+    });
+};
+
+function format_columns(columns) {
+    formatted = [];
+    ordered = [
+        'Target Gene Symbol',
+        'Description'
+    ]
+    column_types = {
+
+    }
+    for (val of ordered) {
+        formatted.push({"mData": val, "sTitle": val, "sClass": "main_data", "bVisible": true});
+    }
+    var remaining = $(columns).not(ordered).get();
+    for (val of remaining) {
+        if (val.startsWith("Rep")){
+            formatted.push({"mData": val, "sTitle": val, "bVisible": false, "sClass": "count_data"});
+        } else if (val.startsWith("pos|")){
+            formatted.push({"mData": val, "sTitle": val, "bVisible": false, "sClass": "mageck_data pos_mageck"})
+        } else if (val.startsWith("neg|")){
+            formatted.push({"mData": val, "sTitle": val, "bVisible": false, "sClass": "mageck_data neg_mageck"})
+        } else {
+            formatted.push({"mData": val, "sTitle": val, "bVisible": false, "sClass": "misc_data"});
+        }
+    }
+    return formatted;
+}
+
+function createDataTable(data, columns){
+    // Destroy table if initialized
+    if ( $.fn.DataTable.isDataTable('#resultTable') ) {
+      $('#resultTable').DataTable().destroy();
+      $('#resultTable tbody').empty();
+    }
+
+
+    // Format columns
+    var formatted_columns = format_columns(columns);
+    $("#resultTable").removeClass("invisible");
+    // Initialize table
+    var table = $('#resultTable').DataTable( {
+        aaData: data,
+        aoColumns: formatted_columns,
+        lengthChange: false,
+        colReorder: true,
+        lengthMenu: [ 5, 10, 25, 50, 75, 100 ],
+        pageLength: 10,
+        buttons: [
+            {
+                extend: 'collection',
+                text: 'Display',
+                dropup: true,
+                buttons: [
+                            {
+                                extend: 'colvisGroup',
+                                text: 'Default',
+                                show: ['.main_data'],
+                                hide: ['.misc_data', '.count_data', '.pos_mageck', '.neg_mageck']
+                            },
+                            {
+                                extend: 'colvisGroup',
+                                text: 'Count Data',
+                                show: ['.main_data', '.count_data'],
+                                hide: ['.misc_data', '.neg_mageck', '.pos_mageck']
+                            },
+                            {
+                                extend: 'colvisGroup',
+                                text: 'Mageck | Pos',
+                                show: ['.main_data', '.pos_mageck'],
+                                hide: ['.misc_data', '.count_data', '.neg_mageck']
+                            },
+                            {
+                                extend: 'colvisGroup',
+                                text: 'Mageck | Neg',
+                                show: ['.main_data', '.neg_mageck'],
+                                hide: ['.misc_data', '.count_data', '.pos_mageck']
+                            },
+                            {
+                                extend: 'colvis',
+                                text: 'Custom'
+                            }
+                        ]
+            },
+            'pageLength'
+        ],
+        columnDefs: [ {
+            targets: "_all",
+            render: $.fn.dataTable.render.ellipsis( 50, true )
+        }]
+    } );
+
+    table.buttons().container()
+        .appendTo( $('div.eight.column:eq(0)', table.table().container()) );
+}
+
+function createExpandedRowMarkup ( d ) {
+    // `d` is the original data object for the row
+    left_markup = "";
+    center_markup = "";
+    right_markup = "";
+    var i = 0;
+    for ( const [ key, value ] of Object.entries(d)) {
+        markup = `
+            <tr>
+                <td style="font-style: bold"> ${ key } </td>
+                <td> ${ value } </td>
+            </tr>
+        `
+        switch (i%3) {
+            case 0:
+                left_markup+=markup;
+                break;
+            case 1:
+                center_markup+=markup;
+                break;
+            case 2:
+                right_markup+=markup;
+                break;
+        }
+        i += 1;
+    };
+    var gene_name = d["Target Gene Symbol"]
+
+    full_markup = `
+    <div class="slider">
+        <table cellpadding="5" cellspacing="0" border="0" class="detailTable">
+            ${ left_markup }
+        </table>
+        <table cellpadding="5" cellspacing="0" border="0" class="detailTable">
+            ${ center_markup }
+        </table>
+        <table cellpadding="5" cellspacing="0" border="0" class="detailTable">
+            ${ right_markup }
+        </table>
+    </div>
+    `
+    return full_markup;
+}
+
 $( document ).ready( function() {
+
 
     class Analysis {
         constructor(analysis_config) {
@@ -89,140 +254,19 @@ $( document ).ready( function() {
     $("form#load_submit").submit(function(e) {
         //Submit load data request (controller.analysis_load())
         e.preventDefault();
+        // Destroy table if initialized
+        $("#resultTable").addClass("invisible");
+        if ( $.fn.DataTable.isDataTable('#resultTable') ) {
+          $('#resultTable').DataTable().destroy();
+          $('#resultTable tbody').empty();
+        }
         $("button#load_result").text("Loading...");
         var formData = new FormData(this);
-        $.ajax({
-            url: "/analysis/load",
-            type: 'POST',
-            data: formData,
-            success: function(result) {
-                $("button#load_result").text("Load");
-                //analysis = new Analysis(result.analysis_info)
-                //$("#resultTable").DataTable().destroy();
-                //$('#resultTable').empty(); // empty in case the columns change
-                createDataTable(result.data, result.columns);
-                //displayAnalysis(analysis);
-            },
-            error: function(error) {
-                // From responseText (HTML string), extract error message from title element
-                var error_HTML_response = $(error.responseText);
-                console.log(error_HTML_response);
-                var error = $(error_HTML_response).filter("title").html();
-                alert("Error loading files from analysis directory. " +
-                "Server says: "+ error);
-            },
-            processData: false,
-            contentType: false
-        });
+        load_analysis(formData);
     });
 
-    function format_columns(columns) {
-        formatted = [];
-        ordered = [
-            'Target Gene Symbol',
-            'Target Gene ID',
-            'Description'
-        ]
-        for (val of ordered) {
-            formatted.push({"mData": val, "sTitle": val, "sClass": "main_data", "bVisible": true});
-        }
-        var remaining = $(columns).not(ordered).get();
-        for (val of remaining) {
-            if (val.startsWith("Rep")){
-                formatted.push({"mData": val, "sTitle": val, "bVisible": false, "sClass": "count_data"});
-            } else {
-                formatted.push({"mData": val, "sTitle": val, "bVisible": false, "sClass": "misc_data"});
-            }
-        }
-        return formatted;
-    }
-
-    function createDataTable(data, columns){
-        var formatted_columns = format_columns(columns);
-        var table = $('#resultTable').DataTable( {
-            aaData: data,
-            aoColumns: formatted_columns,
-            lengthChange: false,
-            colReorder: true,
-            lengthMenu: [ 5, 10, 25, 50, 75, 100 ],
-            pageLength: 10,
-            fixedHeaderToggle: true,
-            buttons: [
-                {
-                    extend: 'collection',
-                    text: 'Display',
-                    dropup: true,
-                    buttons: [
-                                {
-                                    extend: 'colvisGroup',
-                                    text: 'Default',
-                                    show: ['.main_data'],
-                                    hide: ['.misc_data', '.count_data']
-                                },
-                                {
-                                    extend: 'colvisGroup',
-                                    text: 'Count Data',
-                                    show: ['.main_data', '.count_data'],
-                                    hide: ['.misc_data']
-                                },
-                                {
-                                    extend: 'colvis',
-                                    text: 'Custom'
-                                }
-                            ]
-                },
-                'pageLength'
-            ],
-            fixedColumns:   {
-                heightMatch: 'none'
-            },
-            columnDefs: [ {
-                targets: "_all",
-                render: $.fn.dataTable.render.ellipsis( 50, true )
-            }]
-        } );
-
-        table.buttons().container()
-            .appendTo( $('div.eight.column:eq(0)', table.table().container()) );
-    }
-
-    function createExpandedRowMarkup ( d ) {
-        // `d` is the original data object for the row
-        left_markup = "";
-        right_markup = "";
-        var add_to_left = true;
-        for ( const [ key, value ] of Object.entries(d)) {
-            markup = `
-                <tr>
-                    <td> ${ key } </td>
-                    <td> ${ value } </td>
-                </tr>
-            `
-            if (add_to_left) {
-                left_markup+=markup;
-                console.log("left");
-            } else {
-                right_markup+=markup;
-                console.log("right");
-            };
-            add_to_left = !add_to_left
-        };
-        var gene_name = d["Target Gene Symbol"]
-
-        full_markup = `
-        <div class="slider">
-            <table cellpadding="5" cellspacing="0" border="0" class="detailTable">
-                ${ left_markup }
-            </table>
-            <table cellpadding="5" cellspacing="0" border="0" class="detailTable">
-                ${ right_markup }
-            </table>
-        </div>
-        `
-        return full_markup;
-    }
     //
-    $(document.body).on('click', '#resultTable tbody tr', function () {
+    $(document.body).on('dblclick', '#resultTable tbody tr[role="row"]', function () {
         var table = $("#resultTable").DataTable();
         var tr = $(this);
         var row = table.row( tr );
@@ -245,7 +289,7 @@ $( document ).ready( function() {
             $('div.slider', row.child()).slideDown();
         }
     } );
-    $(document.body).on('click', '.childRow, .detailTable tbody tr td', function () {
+    $(document.body).on('dblclick', '.childRow, .detailTable tbody tr td', function () {
         var table = $("#resultTable").DataTable();
         var tr = $(this).closest("tr.childRow").prev();
         var row = table.row( tr );
@@ -289,8 +333,6 @@ $( document ).ready( function() {
         for (var propt in output_dict) {
             obj_array = eval(output_dict[propt]);
             if (obj_array != false ) { //if there's data, set data in dataframe
-                console.log(obj_array)
-                //debugger;
                 output_dict[propt] = jd.dfFromObjArray(obj_array);
             } else { //otherwise, keep field as false
                 output_dict[propt] = false;
