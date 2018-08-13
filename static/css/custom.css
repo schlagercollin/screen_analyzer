@@ -3,7 +3,7 @@
 }
 
 .main_wrapper {
-    max-width: 800px;
+    /* max-width: 800px; */
 }
 
 .shrunk {
@@ -11,8 +11,17 @@
     transition: max-width 0.1s;
 }
 
+.about-logo{
+    display: inline-block;
+    max-width: 32%;
+}
+
+.myPlotContainer{
+    /* max-width: 30%; */
+}
+
 .file_select{
-    max-width: 800px;
+    /* max-width: 800px; */
 }
 
 .bottom_margin {
