@@ -249,16 +249,54 @@ class Analysis:
 
         return self.config_info
 
-    # def load_specific(self, analysis_type, analysis_column):
-    #     if analysis_type
+    def load_specific_data(self, analysis_type, level, columns, sort_by, ascending, datapoints=1000):
+        df = self.load_specific_df(analysis_type, level)
+        if df is not None:
+            df = df.sort_values(by=sort_by, ascending=ascending)
+            df = df.head(n=int(datapoints))
+            if columns == "all":
+                return df.tolist()
+            else:
+                return df[columns].tolist()
+        else:
+            return None
 
+    def load_specific_df(self, analysis_type, level):
+        if analysis_type == "Counts":
+            df = self.get_counts_result(level=level)
+            df = df.drop(index="Non-Targeting-Control") # Drop Non-Targeting Control
+        elif analysis_type == "Mageck Top":
+            df = self.get_mageck_result(level, "Top Sorted")
+        elif analysis_type == "Mageck Bottom":
+            df = self.get_mageck_result(level, "Bottom Sorted")
+        elif analysis_type == "Ratio":
+            df = self.get_ratio_result(level)
+        else:
+            raise "Analysis type %s not recognized in load_specific_df." % analysis_type
+        return df
 
-    def get_gene_counts_data(self):
-        gene_counts_file = self.path_and_prefix + "_gene_counts.csv"
-        gene_counts_df = pd.read_csv(gene_counts_file, header=[0,1], index_col=[0])
-        gene_counts_df.columns = flattenHierarchicalCol(gene_counts_df.columns)
-        gene_counts_df = gene_counts_df.fillna("--")
-        return gene_counts_df
+    def get_counts_result(self, level="Gene"):
+        if level == "Gene":
+            counts_file = self.path_and_prefix + "_gene_counts.csv"
+        else:
+            counts_file = self.path_and_prefix + "_guide_counts.csv"
+        counts_df = pd.read_csv(counts_file, header=[0,1], index_col=[0])
+        counts_df.columns = flattenHierarchicalCol(counts_df.columns)
+        counts_df = counts_df.fillna("--")
+        return counts_df
+
+    def get_ratio_result(self, level):
+        if level == "Gene":
+            ratio_file = os.path.join(self.path, "Ratio")
+            ratio_file = os.path.join(ratio_file, self.name+"_ratio_genes.csv")
+        else:
+            ratio_file = os.path.join(self.path, "Ratio")
+            ratio_file = os.path.join(ratio_file, self.name+"_ratio_guides.csv")
+        try:
+            ratio_df = pd.read_csv(ratio_file)
+        except:
+            ratio_df = None
+        return ratio_df
 
     def get_mageck_result(self, level, condition):
         # Build correct mageck file path based on level and condition
@@ -274,18 +312,26 @@ class Analysis:
         elif level == "Guide":
             mageck_file_path += "_guide_results.csv"
 
-        assert os.path.exists(mageck_file_path), "Mageck file was not found!"
-
-        mageck_result_df = pd.read_csv(mageck_file_path)
-        mageck_result_df = mageck_result_df.fillna("--")
-
+        try:
+            mageck_result_df = pd.read_csv(mageck_file_path)
+            mageck_result_df = mageck_result_df.fillna("--")
+        except:
+            mageck_result_df = None
         return mageck_result_df
 
     def fetch_combined_data(self, datapoints=1000):
-        gene_counts_df = self.get_gene_counts_data()
+        print("Fetching combined data...")
+        gene_counts_df = self.get_counts_result()
+        combined_df = gene_counts_df
         mageck_statistics_df = self.get_mageck_result("Gene", "Top Sorted")
-        mageck_statistics_df = mageck_statistics_df.set_index("id", drop=True)
-        combined_df = gene_counts_df.join(mageck_statistics_df)
+        if mageck_statistics_df is not None:
+            mageck_statistics_df = mageck_statistics_df.set_index("id", drop=True)
+            combined_df = combined_df.join(mageck_statistics_df)
+        ratio_statistics_df = self.get_ratio_result("Gene")
+        if ratio_statistics_df is not None:
+            ratio_statistics_df = ratio_statistics_df.set_index("Target Gene Symbol", drop=True)
+            combined_df = combined_df.join(ratio_statistics_df)
+
         combined_df = combined_df.fillna("--")
 
         initial_col_order = [
@@ -309,7 +355,7 @@ class Analysis:
 
 
     def fetch_general_data(self, datapoints=1000):
-        gene_counts_df = self.get_gene_counts_data()
+        gene_counts_df = self.get_counts_result()
         # Defines the order of the first couple of columns
         my_columns = [
             'Target Gene Symbol',
@@ -339,11 +385,18 @@ def analysis_load_specific():
 
         analysis_name = request.values['analysis_name']
         analysis_type = request.values['analysis_type']
-        analysis_column = request.values['analysis_column']
+        analysis_level = request.values['analysis_level']
+        analysis_columns = request.values['analysis_columns']
+        analysis_sort_by = request.values['analysis_sort_by']
+        analysis_ascending = request.values['analysis_ascending']
+        analysis_datapoints = request.values['analysis_datapoints']
 
         analysis = Analysis(analysis_name)
 
-        data = analysis.load_specific(analysis_type, analysis_column)
+        data = analysis.load_specific_data(analysis_type, analysis_level, \
+                                            analysis_columns, analysis_sort_by, \
+                                            analysis_ascending, \
+                                            datapoints=analysis_datapoints)
 
         return jsonify(data=data)
 
@@ -363,7 +416,7 @@ def analysis_load():
         data, columns = analysis.fetch_combined_data(datapoints=datapoints)
 
         print("Passing data to frontend")
-        return jsonify(analysis_info=analysis.config_info, data=data, columns=columns)
+        return jsonify(analysis_info=analysis.config_info, data=data, columns=columns, name=analysis_name)
 
 def load_general_info(output_path, output_name):
     """function to load count data from a result directory"""

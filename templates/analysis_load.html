@@ -27,7 +27,6 @@
 </script>
 
 <h1>Genetic Screen Analysis Pipeline</h1>
-<div style="max-width: 1000px;">
     <div class="accordion bottom_margin" id="accordionExample">
       <div class="card mb-3"  style="border: 1px solid rgba(0,0,0,.125)">
         <div style="position: relative" class="card-header" id="headingOne" data-toggle="collapse" data-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
@@ -63,68 +62,13 @@
         </div>
       </div>
     </div>
-</div>
     <!-- End input stuff -->
+    
     <!-- Begin output display stuff -->
-    <div id="analysisInfo">
-    </div>
-    <table id="resultTable" class="ui celled table invisible" width="100%"></table>
-    <br>
+    <div id="analysisInfo"></div>
     <!-- Begin plot stuff -->
-    {% set graphList = ['plotDiv_mageck', 'plotDiv_ratio', 'plotDiv_topCounts', 'plotDiv_botCounts', 'plotDiv_unsortedCounts', 'plotDiv_fischer'] %}
-    {% for item in graphList %}
-        <div id="{{ item }}"></div>
-    {% endfor %}
-
-    <script>
-    var coll = document.getElementsByClassName("collapsible");
-    var i;
-
-    for (i = 0; i < coll.length; i++) {
-      coll[i].addEventListener("click", function() {
-        this.classList.toggle("active");
-        var content = this.nextElementSibling;
-        if (content.style.maxHeight){
-          content.style.maxHeight = null;
-        } else {
-          content.style.maxHeight = content.scrollHeight + "px";
-        }
-      });
-    }
-    </script>
-
-
-    <div class="result_wrapper" style="display: none;">
-
-
-        <br>
-        <div class="form-group">
-        Sort by:
-            <select name="display_setting" id="display_settings_select" class="file_select form-control">
-                    <option>
-                        Mageck
-                    </option>
-                    <option>
-                        Ratio Test
-                    </option>
-                    <option>
-                        Fischer Exact
-                    </option>
-                    <option>
-                        Sorted or Top Sorted Counts
-                    </option>
-                    <option>
-                        Bottom Sorted Counts
-                    </option>
-                    <option>
-                        Unsorted Counts
-                    </option>
-            </select>
-        </div>
-        <input type="text" id="search" placeholder="Search for genes.." title="Type in a name" />
-
-        <div class="results flex-container">
-        </div>
-    </div>
+    <div id="plotsDiv"></div>
+    <br>
+    <table id="resultTable" class="ui celled table invisible" width="100%"></table>
 
 {% endblock %}

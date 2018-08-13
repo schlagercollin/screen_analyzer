@@ -176,8 +176,7 @@ class analysisThread(threading.Thread):
 
         if self.config_analysis["Ratio"] == True:
             self.status = "Beginning Ratio analysis..."
-            for_ratio_test = self.guides_result[['sgRNA Target Sequence', 'Target Gene Symbol', 'Bot Sorted Counts', 'Top Sorted Counts']].copy()
-            ratio_result_df = self.ratio_test(for_ratio_test)
+            ratio_result_df = self.ratio_test(integrated_output_guide_level)
 
         self.status = "Analysis Complete"
 
@@ -246,7 +245,12 @@ class analysisThread(threading.Thread):
 
         # Create mageck input file
         self.status = "Creating Mageck input file..."
-        mageck_df = create_mageck_input_files(input_dataframe, ["Unsorted Population", "Top Sorted Population"])
+        if condition=="Top_Sorted":
+            mageck_df = create_mageck_input_files(input_dataframe, ["Unsorted Population", "Top Sorted Population"])
+        elif condition=="Bottom_Sorted":
+            mageck_df = create_mageck_input_files(input_dataframe, ["Unsorted Population", "Bottom Sorted Population"])
+        else:
+            raise "Mageck condition not recognized."
         mageck_path = self.mageck_output_path_prefix+"_"+condition+"_mageck_input_file.txt"
 
         output_column_values = mageck_df.columns.get_level_values(1)+":"+mageck_df.columns.get_level_values(0)
@@ -290,37 +294,57 @@ class analysisThread(threading.Thread):
 
         return mageck_result_df
 
-    def ratio_test(self, df):
+    def ratio_test(self, input_dataframe):
+
+        self.status = "Creating Ratio inputs..."
+
+        bot5_comb = create_mageck_input_files(input_dataframe, ["Bottom Sorted Population"])
+        top5_comb = create_mageck_input_files(input_dataframe, ["Top Sorted Population"])
+
+        bot5_comb += 1
+        top5_comb += 1
+
+        forQuant = bot5_comb.join(top5_comb)
+
+        self.status = "Performing quantile normalization..."
 
         # Add 1 to reads
-        df['Bot Sorted Counts+1'] = df['Bot Sorted Counts']+1
-        df['Top Sorted Counts+1'] = df['Top Sorted Counts']+1
-
-        forQuant = df[['Bot Sorted Counts+1','Top Sorted Counts+1']].copy()
         quantNorm = self.quantileNormalize(forQuant)
-        # rank_mean = forQuant.stack().groupby(forQuant.rank(method='first').stack().astype(int)).mean()
-        # quantNorm = forQuant.rank(method='min').stack().astype(int).map(rank_mean).unstack()
+        quantNorm = quantNorm.rename(columns={"Bottom Sorted Population": "Bottom Quantile Norm",
+                                                "Top Sorted Population": "Top Quantile Norm"})
 
+        self.status = "Performing geometric mean of quantile normalized values..."
 
-        df['bot.Rep1.Quant'] = quantNorm.loc[:,'Top Sorted Counts+1']
-        df['top.Rep1.Quant'] = quantNorm.loc[:,'Bot Sorted Counts+1']
+        quantNorm["Mean Bottom Quantile Norm"] = quantNorm["Bottom Quantile Norm"].apply(self.geomMean, axis=1)
+        quantNorm["Mean Top Quantile Norm"] = quantNorm["Top Quantile Norm"].apply(self.geomMean, axis=1)
 
-        ratios = df[['sgRNA Target Sequence', 'Target Gene Symbol', 'bot.Rep1.Quant']].copy()
-        ratios.rename(columns = {'bot.Rep1.Quant':'Bot5.Geom.Mean'}, inplace=True)
-        ratios['Top5.Geom.Mean'] = df['top.Rep1.Quant']
-        ratios['ratio'] = ratios['Bot5.Geom.Mean'] / ratios['Top5.Geom.Mean']
-        ratios['log_ratio'] = ratios['ratio'].apply(np.log2)
+        self.status = "Flattening multi-dimensional index"
+
+        ratios = quantNorm[["Mean Bottom Quantile Norm","Mean Top Quantile Norm"]].copy()
+        ratios.columns = list(map(lambda column_name: "".join(column_name).rstrip(""), ratios.columns))
+
+        self.status = "Computing ratio of bottom to top..."
+
+        ratios["Ratio"] = ratios["Mean Bottom Quantile Norm"] / ratios["Mean Top Quantile Norm"]
+
+        self.status = "Computing log2 of ratio..."
+
+        ratios["log2(ratio)"] = ratios["Ratio"].apply(np.log2)
+
+        self.status = "Computing mean abundance..."
 
         ratios['mean_abundance'] = forQuant.apply(self.geomMean, axis=1)
+
+        self.status = "Computing log2(mean abundance)"
+
         ratios['log_MA'] = ratios['mean_abundance'].apply(np.log2)
 
-        ratios.sort_values(by=['log_MA'], ascending=True, inplace=True)
-        ratios['ZScore'] = np.zeros(len(ratios['log_MA']))
+        ratios = ratios.sort_values(by=['log_MA'], ascending=True)
+
+        self.status = "Computing binned zscores..."
 
         bins=3
-
         guidesPerBin = math.ceil(len(ratios)/bins)
-        ratios.reset_index(inplace=True)
 
         for i in range(bins):
             start = (i)*guidesPerBin
@@ -328,24 +352,25 @@ class analysisThread(threading.Thread):
             if end > len(ratios):
                 end = len(ratios)
             guides = ratios[start:end]
-            guides['ZScore'] = stats.zscore(guides.loc[:,'log_ratio'])
-            # ratios['ZScore'][start:end] = guides.loc[:,'ZScore']
+            guides["ZScore"] = stats.zscore(guides["log2(ratio)"])
             ratios.loc[start:end,'ZScore'] = guides.loc[:,'ZScore']
 
-        print("Collapsing to Gene Level...")
-        ratios.sort_values(by=['sgRNA Target Sequence'], inplace=True)
-        aggregation_rule = {c : "mean" if (c == "ZScore" or c == "log_ratio") else "first" for c in ratios.columns}
-        aggregation_rule.pop("Target Gene Symbol")
-        gene_level_df = ratios.groupby("Target Gene Symbol", as_index=False).agg(aggregation_rule)
-        gene_level_df.sort_values(by=['ZScore'], ascending=False, inplace=True)
-        gene_level_df.drop(columns=["index"], inplace=True)
-        gene_level_df.reset_index(drop=True, inplace=True)
-        ratios_path = self.output_prefix+"_ratio_test.csv"
-        gene_level_df.to_csv(ratios_path)
+        self.status = "Outputting guide level file..."
 
-        # Add more below
+        guides_path = os.path.join(self.output_path, self.output_prefix+"_ratio_guides.csv")
+        ratios.to_csv(guides_path)
 
-        self.genes_result = complete_merge(self.genes_result, gene_level_df)
+        self.status = "Collapsing to gene-level statistics..."
+
+        gene_level_df = ratios.groupby("Target Gene Symbol", as_index=True).agg("mean")
+        gene_stats = gene_level_df[["log2(ratio)","ZScore"]]
+        gene_stats = gene_stats.rename(columns={"log2(ratio)":"Mean log2(ratio)", "ZScore":"Mean ZScore"})
+        gene_stats = gene_stats.sort_values(by="Mean ZScore", ascending=False)
+
+        self.status = "Outputting gene level file..."
+
+        genes_path = os.path.join(self.output_path, "Ratio", self.output_prefix+"_ratio_genes.csv")
+        gene_stats.to_csv(genes_path)
 
         return ratios
 
@@ -375,35 +400,13 @@ def testing():
 
 if __name__ == "__main__":
 
-    unsorted_rep1_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/Fastq Files/Replicate Files/fastq/Genome-Pos-3T3-Unsorted_S1_L001_R1_001.fastq"
-    top_sorted_rep1_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/Fastq Files/Replicate Files/fastq/Genome-Pos-3T3-SortedTop5_S3_L001_R1_001.fastq"
-    bot_sorted_rep1_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/Fastq Files/Replicate Files/fastq/Genome-Pos-3T3-SortedBot10_S2_L001_R1_001.fastq"
+    import yaml
+    with open("tmp/screen_analyses/ratio_1/analysis_config.yaml", "r") as f:
+        input_files = yaml.load(f)
 
-    unsorted_rep2_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/Fastq Files/Replicate Files/fastq/Genome-Pos2-3T3-Unsorted_S1_L001_R1_001.fastq"
-    top_sorted_rep2_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/Fastq Files/Replicate Files/fastq/Genome-Pos2-3T3-Top5_S3_L001_R1_001.fastq"
-    bot_sorted_rep2_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/Fastq Files/Replicate Files/fastq/Genome-Pos2-3T3-Bot10_S2_L001_R1_001.fastq"
-
-    library_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/data/library/Brie_crispr_library_with_controls_for_analysis_updated.csv"
-    control_file = "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer/tmp/Brie-library-controls.txt"
-
-    input_files = {"Fastq":
-                        {"Rep1":
-                            {
-                            "Unsorted Population" : unsorted_rep1_file,
-                            "Top Sorted Population" : top_sorted_rep1_file,
-                            "Bottom Sorted Population" : bot_sorted_rep1_file
-                            },
-                        "Rep2":
-                            {
-                            "Unsorted Population" : unsorted_rep2_file,
-                            "Top Sorted Population" : top_sorted_rep2_file,
-                            "Bottom Sorted Population" : bot_sorted_rep2_file
-                            }
-                        },
-                    "Library": library_file,
-                    "Control": control_file
-    }
+    print(input_files)
 
     output_file = "output.csv"
 
     me = analysisThread(input_files, "test1", "/Users/collinschlager/Documents/Rohatgi_Lab/Informatics/screen_analyzer")
+    me.ratio_test(pd.read_csv("tmp/screen_analyses/ratio_1/ratio_1_guide_counts.csv"))
