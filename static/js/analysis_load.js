@@ -112,7 +112,7 @@ var graph_config = {
             "ascending": false
         }
     },
-    "Ratio": {
+    "Ratio Genes": {
         "data": {
             "data_name": "Ratio",
             "data_level": "Gene"
@@ -128,6 +128,25 @@ var graph_config = {
         "text_data": "Target Gene Symbol",
         "sort_by": {
             "value": "Mean ZScore",
+            "ascending": false
+        }
+    },
+    "Ratio Guides": {
+        "data": {
+            "data_name": "Ratio",
+            "data_level": "Guides"
+        },
+        "x": {
+            "title": "log2( mean abundance )",
+            "column_name": "log_MA"
+        },
+        "y": {
+            "title": "ZScore",
+            "column_name": "ZScore"
+        },
+        "text_data": "Target Gene Symbol",
+        "sort_by": {
+            "value": "ZScore",
             "ascending": false
         }
     }
@@ -180,8 +199,9 @@ $.fn.dataTable.render.ellipsis = function ( cutoff, wordbreak, escapeHtml ) {
 };
 
 
-function load_analysis(formData){
+function load_analysis(formData, renderPlots){
     // formData needs "analysis_name" key
+    console.log("Render Plots? ", renderPlots);
     $.ajax({
         url: "/analysis/load",
         type: 'POST',
@@ -189,12 +209,14 @@ function load_analysis(formData){
         success: function(result) {
             $("button#load_result").html("<i class='fas fa-chart-line'></i> Load Analysis");
             analyses = result.analysis_info["Analyses Queued"];
-            if (analyses["Ratio"]){
-                generatePlot(result.name, "Ratio");
-            };
-            if (analyses["Mageck"]){
-                generatePlot(result.name, "Mageck Top Results");
-                generatePlot(result.name, "Mageck Bottom Results");
+            if (renderPlots) {
+                if (analyses["Ratio"]){
+                    generatePlot(result.name, "Ratio Guides");
+                };
+                if (analyses["Mageck"]){
+                    generatePlot(result.name, "Mageck Top Results");
+                    generatePlot(result.name, "Mageck Bottom Results");
+                };
             };
             createDataTable(result.data, result.columns);
             $("#collapseOne").collapse('toggle');
@@ -265,6 +287,7 @@ function generatePlot(analysis_name, plot_type){
         var x_data = values[0]["data"];
         var y_data = values[1]["data"];
         var text_data = values[2]["data"];
+        // console.log(y_data);
         createPlot(div_name, x_data, y_data, text_data, title, xaxis_title, yaxis_title);
     });
 
@@ -352,7 +375,7 @@ function createDataTable(data, columns){
         aoColumns: formatted_columns,
         lengthChange: false,
         colReorder: true,
-        lengthMenu: [ 5, 10, 25, 50, 75, 100 ],
+        lengthMenu: [ 5, 10, 25, 50, 75, 100, 200],
         pageLength: 10,
         buttons: [
             {
@@ -364,7 +387,7 @@ function createDataTable(data, columns){
                                 extend: 'colvisGroup',
                                 text: 'Default',
                                 show: ['.main_data'],
-                                hide: ['.misc_data', '.count_data', '.pos_mageck', '.neg_mageck', '.ratio_test']
+                                hide: ['.misc_data', '.count_data', '.pos_mageck', '.neg_mageck', '.ratio_data']
                             },
                             {
                                 extend: 'colvisGroup',
@@ -499,7 +522,8 @@ $( document ).ready( function() {
         }
         $("button#load_result").text("Loading...");
         var formData = new FormData(this);
-        load_analysis(formData);
+        var renderPlots = $("#renderPlotsBool").is(":checked");
+        load_analysis(formData, renderPlots);
     });
 
     //

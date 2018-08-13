@@ -7,7 +7,7 @@ import os, json, threading, sys, csv, shutil, subprocess
 from flask import Flask, render_template, request, jsonify, url_for, send_from_directory
 from werkzeug.utils import secure_filename
 # import supafast
-import collin_screen_analysis_2 as screen_analysis
+import collin_screen_analysis as screen_analysis
 import library_embellish
 import time
 import logging
@@ -252,6 +252,8 @@ class Analysis:
     def load_specific_data(self, analysis_type, level, columns, sort_by, ascending, datapoints=1000):
         df = self.load_specific_df(analysis_type, level)
         if df is not None:
+            print(sort_by, ascending)
+            print(type(ascending))
             df = df.sort_values(by=sort_by, ascending=ascending)
             df = df.head(n=int(datapoints))
             if columns == "all":
@@ -390,6 +392,15 @@ def analysis_load_specific():
         analysis_sort_by = request.values['analysis_sort_by']
         analysis_ascending = request.values['analysis_ascending']
         analysis_datapoints = request.values['analysis_datapoints']
+
+        print(analysis_ascending, type(analysis_ascending))
+
+        if analysis_ascending == "false":
+            analysis_ascending = False
+        else:
+            analysis_ascending = True
+
+        print(analysis_ascending, type(analysis_ascending))
 
         analysis = Analysis(analysis_name)
 
