@@ -357,7 +357,7 @@ class analysisThread(threading.Thread):
 
         self.status = "Outputting guide level file..."
 
-        guides_path = os.path.join(self.output_path, self.output_prefix+"_ratio_guides.csv")
+        guides_path = os.path.join(self.output_path, "Ratio", self.output_prefix+"_ratio_guides.csv")
         ratios.to_csv(guides_path)
 
         self.status = "Collapsing to gene-level statistics..."
