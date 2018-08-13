@@ -1,0 +1,97 @@
+{
+    "Top Sorted Gene Counts": {
+        "data": {
+            "data_name": "Counts",
+            "data_level": "Gene"
+        },
+        "x": {
+            "title": "Target Gene Symbol",
+            "column_name": "Target Gene Symbol"
+        },
+        "y": {
+            "title": "Rep1: Top Sorted Gene Population",
+            "column_name": "Rep1: Top Sorted Population"
+        },
+        "text_data": "Target Gene Symbol",
+        "sort_by": {
+            "value": "Rep1: Top Sorted Population",
+            "ascending": false
+        }
+    },
+    "Bottom Sorted Gene Counts": {
+        "data": {
+            "data_name": "Counts",
+            "data_level": "Gene"
+        },
+        "x": {
+            "title": "Target Gene Symbol",
+            "column_name": "Target Gene Symbol"
+        },
+        "y": {
+            "title": "Rep1: Bottom Sorted Gene Population",
+            "column_name": "Rep1: Bottom Sorted Population"
+        },
+        "text_data": "Target Gene Symbol",
+        "sort_by": {
+            "value": "Rep1: Bottom Sorted Population",
+            "ascending": false
+        }
+    },
+    "Unsorted Gene Counts": {
+        "data": {
+            "data_name": "Counts",
+            "data_level": "Gene"
+        },
+        "x": {
+            "title": "Target Gene Symbol",
+            "column_name": "Target Gene Symbol"
+        },
+        "y": {
+            "title": "Rep1: Unsorted Gene Population",
+            "column_name": "Rep1: Unsorted Population"
+        },
+        "text_data": "Target Gene Symbol",
+        "sort_by": {
+            "value": "Rep1: Unsorted Population",
+            "ascending": false
+        }
+    },
+    "Mageck Top Results": {
+        "data": {
+            "data_name": "Mageck Top",
+            "data_level": "Gene"
+        },
+        "x": {
+            "title": "pos|lfc",
+            "column_name": "pos|lfc"
+        },
+        "y": {
+            "title": "pos|-log(p-value)",
+            "column_name": "pos|-log(p-value)"
+        },
+        "text_data": "id",
+        "sort_by": {
+            "value": "pos|-log(p-value)",
+            "ascending": false
+        }
+    },
+    "Mageck Bottom Results": {
+        "data": {
+            "data_name": "Mageck Bottom",
+            "data_level": "Gene"
+        },
+        "x": {
+            "title": "pos|lfc",
+            "column_name": "pos|lfc"
+        },
+        "y": {
+            "title": "pos|-log(p-value)",
+            "column_name": "pos|-log(p-value)"
+        },
+        "text_data": "id",
+        "sort_by": {
+            "value": "pos|-log(p-value)",
+            "ascending": false
+        }
+    }
+}
