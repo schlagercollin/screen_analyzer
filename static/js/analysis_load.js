@@ -276,6 +276,7 @@ function createPlot(div_name, x_data, y_data, text_data, title, xaxis_title, yax
         Plotly.purge(div_name);
     } else {
         $("#plotsDiv").append("<div id='"+div_name+"'></div>");
+        $("#plotsDiv").addClass("myPlotContainer")
     }
     var trace = {
         x: x_data,

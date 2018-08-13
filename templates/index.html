@@ -210,7 +210,7 @@ $( document ).ready( function() {
         forms += generateFormField("Unsorted Population", "unsorted_"+rep, "fastq");
 
         var markup = `
-        <div class="card mb-3" style="max-width: 800px;">
+        <div class="card mb-3">
               <div class="card-header">Replicate ${rep}:</div>
               <div class="card-body">
                 ${forms}
@@ -508,12 +508,12 @@ $( document ).ready( function() {
                 <h6>Name your analysis:</h6>
                 <input name="analysis_name" placeholder="Enter an output name here" class="file_select form-control" />
             </div>
-            <hr align="left" style="max-width:800px;">
+            <hr align="left">
             <div class="form-group" id="file_selection_div">
             </div>
             <button type=button class="btn add_replicate"><i class="fas fa-plus-square"></i> Add a replicate</button>
             <button type=button class="btn remove_replicate"><i class="fas fa-trash-alt"></i> Remove last replicate</button>
-            <hr align="left" style="max-width:800px;">
+            <hr align="left">
             <div class="form-group" id="guides_div">
                 <h6>Enter a guide library file:</h6>
                 <select name="library" id="library_file_select" class="file_select form-control inline">
@@ -548,18 +548,21 @@ $( document ).ready( function() {
                 </select>
                 <input name="control" id="control_file_upload" style="display: none;" class="file_upload inline file_select form-control" type="file" />
             </div>
-            <hr align="left" style="max-width:700px;">
+            <hr align="left">
             <h6>Select Analysis Type:</h6>
-            <div class="row analysis_type" style="max-width: 800px;">
-                    <div class="col-sm-4">
-                        <div class="analysis_card card mb-3" style="position: relative; max-width: 20rem;">
+            <div class="row analysis_type">
+                    <div class="col-sm-4 d-flex">
+                        <div class="analysis_card card mb-3 flex-fill" style="position: relative;">
                               <div class="card-header">
                                   Mageck Test
                                   <input type="checkbox" name="Mageck" value=true style="position: absolute; right: 15px; top: 17px;"></input>
                               </div>
                               <div class="card-body">
                                 <p style="font-size: 15px;" class="card-text" style="margin-bottom: 0px;">
-                                    Description of Mageck Test
+                                    <blockquote>
+                                      <p>"Model-based Analysis of Genome-wide CRISPR-Cas9 Knockout (MAGeCK) is a computational tool to identify important genes from the recent genome-scale CRISPR-Cas9 knockout screens (or GeCKO) technology."<a href="https://sourceforge.net/p/mageck/wiki/Home/"><sup>[1]</sup></a></p>
+                                      <footer class="blockquote-footer"><cite title="Source Title">Dr. Xiaole Shirley Liu's lab</cite></footer>
+                                    </blockquote>
                                 </p>
                                 <hr>
                                 <p style="font-size: 15px;" class="card-text" style="margin-bottom: 0px;">
@@ -568,15 +571,18 @@ $( document ).ready( function() {
                               </div>
                         </div>
                     </div>
-                    <div class="col-sm-4">
-                        <div class="analysis_card card mb-3" style="position: relative; max-width: 20rem;">
+                    <div class="col-sm-4 d-flex">
+                        <div class="analysis_card card mb-3 flex-fill" style="position: relative;">
                               <div class="card-header">
                                   Ratio Test
                                   <input type="checkbox" name="Ratio" value=true style="position: absolute; right: 15px; top: 17px;"></input>
                               </div>
-                              <div style="font-size: 15px;" class="card-body">
+                              <div class="card-body">
                                   <p style="font-size: 15px;" class="card-text" style="margin-bottom: 0px;">
-                                      Description of Ratio Test
+                                      <blockquote>
+                                        <p>Compares two enriched populations by computing the log2 ratio of quantile normalized counts from the top sorted population to the bottom sorted population.<a href="#"><sup>[2]</sup></a></p>
+                                        <footer class="blockquote-footer">Test adapted from <cite title="Source Title">A. Regev's</cite> work.</footer>
+                                      </blockquote>
                                   </p>
                                   <hr>
                                   <p class="card-text" style="margin-bottom: 0px;">
@@ -585,15 +591,18 @@ $( document ).ready( function() {
                               </div>
                         </div>
                     </div>
-                    <div class="col-sm-4">
-                        <div class="analysis_card card mb-3" style="position: relative; max-width: 20rem;">
+                    <div class="col-sm-4 d-flex">
+                        <div class="analysis_card card mb-3 flex-fill" style="position: relative;">
                               <div class="card-header">
                                   Fisher Exact Test
                                   <input type="checkbox" name="Fischer" value=true style="position: absolute; right: 15px; top: 17px;"></input>
                               </div>
-                              <div style="font-size: 15px;" class="card-body">
+                              <div class="card-body">
                                   <p style="font-size: 15px;" class="card-text" style="margin-bottom: 0px;">
-                                      Description of Fisher Test
+                                      <blockquote>
+                                        <p>Uses the Fisher Exact statistical test to compute significant log-fold changes amoung enriched populations.<a href="#"><sup>[3]</sup></a></p>
+                                        <footer class="blockquote-footer">Test adapted from <cite title="Source Title">B. Patel's</cite> work.</footer>
+                                      </blockquote>
                                   </p>
                                   <hr>
                                   <p class="card-text" style="margin-bottom: 0px;">
@@ -603,9 +612,9 @@ $( document ).ready( function() {
                         </div>
                     </div>
                 </div>
-                <hr align="left" style="max-width:700px;">
+                <hr align="left">
                 <h6>Add notes or comments:</h6>
-                <div style="max-width: 800px;">
+                <div>
                         <textarea name="notes" class="form-control"></textarea>
                 </div>
         </div>
