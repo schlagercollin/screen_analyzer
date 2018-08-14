@@ -6,10 +6,10 @@ Author: Collin Schlager
 ```python3, python3-flask, python3-numpy, python3-pandas, python3-pyaml, python3-scipy```
 
 ### Instructions:
-Fork or download source files
-Change directory into source file root folder: ```cd <insert-path-where-you-put-the-code>/screen_analyzer```
-Run ```python3 application.py```
-Then go to web browser and enter ```localhost:5000```.
+- Fork or download source files
+- Change directory into source file root folder: ```cd <insert-path-where-you-put-the-code>/screen_analyzer```
+- Run ```python3 application.py```
+- Then go to web browser and enter ```localhost:5000```.
 
 Enter an analysis name, your screen .fastq files, your library file, and a control file. Then, select the anlayses you wish to perform and hit run.
 
