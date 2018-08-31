@@ -1,4 +1,4 @@
-var global_dataframes = "Placeholder";
+ var global_dataframes = "Placeholder";
 var display_type = "Placeholder";
 var progress_counter = 0;
 
@@ -18,6 +18,7 @@ function loadJSON (jsonFile) {
 
 var graph_config = {
     "Top Sorted Gene Counts": {
+        "Plot Title": "Top Sorted Gene Counts",
         "data": {
             "data_name": "Counts",
             "data_level": "Gene"
@@ -37,6 +38,7 @@ var graph_config = {
         }
     },
     "Bottom Sorted Gene Counts": {
+        "Plot Title": "Bottom Sorted Gene Counts",
         "data": {
             "data_name": "Counts",
             "data_level": "Gene"
@@ -56,6 +58,7 @@ var graph_config = {
         }
     },
     "Unsorted Gene Counts": {
+        "Plot Title": "Unsorted Gene Counts",
         "data": {
             "data_name": "Counts",
             "data_level": "Gene"
@@ -75,6 +78,7 @@ var graph_config = {
         }
     },
     "Mageck Top Results": {
+        "Plot Title": "MAGeCK – Top Sorted Analysis",
         "data": {
             "data_name": "Mageck Top",
             "data_level": "Gene"
@@ -94,6 +98,7 @@ var graph_config = {
         }
     },
     "Mageck Bottom Results": {
+        "Plot Title": "MAGeCK – Bottom Sorted Analysis",
         "data": {
             "data_name": "Mageck Bottom",
             "data_level": "Gene"
@@ -113,6 +118,7 @@ var graph_config = {
         }
     },
     "Ratio Genes": {
+        "Plot Title": "Ratio Test Analysis – Gene Level",
         "data": {
             "data_name": "Ratio",
             "data_level": "Gene"
@@ -132,6 +138,7 @@ var graph_config = {
         }
     },
     "Ratio Guides": {
+        "Plot Title": "Ratio Test Analysis – Guide Level",
         "data": {
             "data_name": "Ratio",
             "data_level": "Guides"
@@ -273,7 +280,7 @@ function generatePlot(analysis_name, plot_type){
     console.log("Generating plot for", plot_type);
     var div_name = plot_type.replace(/ /g,"_");
     var plot_config = graph_config[plot_type];
-    var title = plot_type;
+    var title = plot_config["Plot Title"]
     var data_name = plot_config["data"]["data_name"];
     var data_level = plot_config["data"]["data_level"];
     var sort_by = plot_config["sort_by"]["value"];
@@ -334,7 +341,7 @@ function format_columns(columns) {
     formatted = [];
     ordered = [
         'Target Gene Symbol',
-        'Description'
+        'name'
     ]
     column_types = {
 
@@ -393,19 +400,19 @@ function createDataTable(data, columns){
                                 extend: 'colvisGroup',
                                 text: 'Count Data',
                                 show: ['.main_data', '.count_data'],
-                                hide: ['.misc_data', '.neg_mageck', '.pos_mageck']
+                                hide: ['.misc_data', '.neg_mageck', '.pos_mageck','.ratio_data']
                             },
                             {
                                 extend: 'colvisGroup',
                                 text: 'Mageck | Pos',
                                 show: ['.main_data', '.pos_mageck'],
-                                hide: ['.misc_data', '.count_data', '.neg_mageck']
+                                hide: ['.misc_data', '.count_data', '.neg_mageck','.ratio_data']
                             },
                             {
                                 extend: 'colvisGroup',
                                 text: 'Mageck | Neg',
                                 show: ['.main_data', '.neg_mageck'],
-                                hide: ['.misc_data', '.count_data', '.pos_mageck']
+                                hide: ['.misc_data', '.count_data', '.pos_mageck','.ratio_data']
                             },
                             {
                                 extend: 'colvisGroup',

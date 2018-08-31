@@ -15,19 +15,28 @@ import pandas as pd
 import copy
 import yaml
 import shutil
-#
-# werkzeug_log = logging.getLogger('werkzeug')
+
+# functions for read/write to google bucket
+
 # werkzeug_log.setLevel(logging.ERROR)
 
 my_logger = logging.getLogger(__name__)
 my_logger.setLevel(logging.DEBUG)
 ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-my_logger.addHandler(ch)
+
+
+# ch.setLevel(logging.DEBUG)
+# my_logger.addHandler(ch)
+
 
 curdir = os.path.dirname(os.path.abspath(__file__))
+# LOG_FOLDER = os.path.join(curdir, 'log.txt')
 UPLOAD_FOLDER = os.path.join(curdir, 'tmp/data')
 ANALYSIS_FOLDER = os.path.join(curdir, 'tmp/Screen_Analyses')
+
+# fh = logging.FileHandler(LOG_FOLDER)
+# my_logger.addHandler(fh)
+
 #print(UPLOAD_FOLDER)
 ALLOWED_EXTENSIONS = ['csv', 'fastq', 'zip', 'txt']
 
@@ -252,10 +261,17 @@ class Analysis:
     def load_specific_data(self, analysis_type, level, columns, sort_by, ascending, datapoints=1000):
         df = self.load_specific_df(analysis_type, level)
         if df is not None:
-            print(sort_by, ascending)
-            print(type(ascending))
             df = df.sort_values(by=sort_by, ascending=ascending)
-            df = df.head(n=int(datapoints))
+            datapoints = int(datapoints)
+            head_length = int(datapoints/3)
+            head_end = 0+head_length
+            tail_length = int(datapoints/3)
+            tail_start = len(df) - tail_length
+            df_1 = df.head(n=head_length)
+            df_2 = df.iloc[head_end:tail_start:50, :]
+            df_3 = df.tail(n=tail_length)
+
+            df = pd.concat([df_1,df_2,df_3], axis=0)
             if columns == "all":
                 return df.tolist()
             else:
@@ -328,19 +344,25 @@ class Analysis:
         mageck_statistics_df = self.get_mageck_result("Gene", "Top Sorted")
         if mageck_statistics_df is not None:
             mageck_statistics_df = mageck_statistics_df.set_index("id", drop=True)
-            combined_df = combined_df.join(mageck_statistics_df)
+            combined_df = combined_df.join(mageck_statistics_df, lsuffix="", rsuffix="_mageck")
         ratio_statistics_df = self.get_ratio_result("Gene")
         if ratio_statistics_df is not None:
             ratio_statistics_df = ratio_statistics_df.set_index("Target Gene Symbol", drop=True)
             combined_df = combined_df.join(ratio_statistics_df)
 
-        combined_df = combined_df.fillna("--")
+
 
         initial_col_order = [
             'Target Gene Symbol'
         ]
 
         combined_df = self.truncate_df(combined_df, initial_col_order, datapoints)
+        combined_df["pos|rank"] = combined_df["pos|rank"]
+        combined_df = combined_df.sort_values(by="pos|rank", ascending = True, na_position="last")
+        combined_df = combined_df.head(n=int(datapoints))
+
+        combined_df = combined_df.fillna("--")
+
 
         json_data, columns = self.return_json(combined_df)
 
@@ -351,7 +373,7 @@ class Analysis:
         columns = initial_column_order + remaining_cols
 
         dataframe = dataframe[ columns ]
-        dataframe = dataframe.head(n=int(datapoints))
+        # dataframe = dataframe.head(n=int(datapoints))
 
         return dataframe
 

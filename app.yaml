@@ -1,0 +1,8 @@
+runtime: python37
+api_version: 1
+
+entrypoint: python application.py
+
+handlers:
+- url: /.*
+  script: application.app

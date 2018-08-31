@@ -1,7 +1,7 @@
 .dea/
 .DS_Store
 **/.DS_Store
-#*.fastq
+*.fastq
 *.swp
 *.pyc
 # *.csv

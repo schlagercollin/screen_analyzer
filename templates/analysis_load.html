@@ -21,7 +21,7 @@
     if (analysis_name_from_url != "None"){
         var formData = new FormData();
         formData.set("analysis_name", analysis_name_from_url);
-        load_analysis(formData);
+        load_analysis(formData, true);
     };
     history.pushState(null, '', '/load');
 </script>

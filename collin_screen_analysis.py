@@ -280,7 +280,7 @@ class analysisThread(threading.Thread):
 
         command = "mageck test -k " + mageck_path + " -t "+test_columns+" -c "+control_columns+" -n " + \
                 str(self.mageck_output_path_prefix)+"_mageck_" + condition + \
-                " --sort-criteria pos --gene-lfc-method alphamean --control-sgrna "\
+                " --sort-criteria pos --gene-lfc-method mean --control-sgrna "\
                  + str(self.control_file)
 
         self.status = "Running Mageck command for %s..." % condition

@@ -1,0 +1,3 @@
+# The prescence of this file makes elastic beanstalk ignore git (it bundles even uncommitted files)
+*.fastq
+tmp/data/Fastq/*.fastq
