@@ -16,9 +16,7 @@ import copy
 import yaml
 import shutil
 
-# functions for read/write to google bucket
 
-# werkzeug_log.setLevel(logging.ERROR)
 
 my_logger = logging.getLogger(__name__)
 my_logger.setLevel(logging.DEBUG)
@@ -32,7 +30,7 @@ ch = logging.StreamHandler()
 curdir = os.path.dirname(os.path.abspath(__file__))
 # LOG_FOLDER = os.path.join(curdir, 'log.txt')
 UPLOAD_FOLDER = os.path.join(curdir, 'tmp/data')
-ANALYSIS_FOLDER = os.path.join(curdir, 'tmp/Screen_Analyses')
+ANALYSIS_FOLDER = os.path.join(curdir, 'tmp/screen_analyses')
 
 # fh = logging.FileHandler(LOG_FOLDER)
 # my_logger.addHandler(fh)
@@ -398,6 +396,7 @@ class Analysis:
 
     def return_json(self, dataframe):
         columns = dataframe.columns.tolist()
+        true = True
         json_data = eval(dataframe.to_json(orient="records"))
         return json_data, columns
 
