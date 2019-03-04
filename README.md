@@ -3,18 +3,29 @@ A simple program to analyze genetic screen data.
 Author: Collin Schlager
 
 ### Dependencies:
-```python3, python3-flask```
+```python3, pip, and virtualenv```
 
-### Install Instructions
+First, make sure you have pip and virtualenv. These will help download the other packages that the web app depends on.
 
-##### Cloning the Source Code from the Repository
+```python3 -m pip install --user --upgrade pip```
+
+```python3 -m pip --version```
+
+```python3 -m pip install --user virtualenv```
+
+
+## Install Instructions
+
+### Cloning the Source Code from the Repository
 
 First, clone the github repository into a directory of your choosing. 
 
 Here, I show how you can make a directory in your Documents folder called "Screens"
 
 ```cd```
+
 ```cd Documents```
+
 ```mkdir Screens```
 
 With the directory created, you can now "change directory" into the new folder.
@@ -33,37 +44,27 @@ Let's checkout the stuff that downloaded by changing directory into the new fold
 
 ```cd screen_analyzer```
 
+Now, we will create a virtual environment to keep all the software dependencies in one place. Note, if you haven't installed virtualenv or pip (described above), you should do so now.
+
+```python3 -m virtualenv env```
+
+This should create a folder called "env."
+
+To enter the virtual environment just created, set your source using the following command.
+
+```source env/bin/activate```
+
+Now that we are in the virtual environment, use pip (package manager) to install the dependencies under requirements.txt. This is done with the following command
+
+```pip install -r requirements.txt```
+
+After this installs the necessary packages, you should be able to run webapp! To start-up the webapp local server, run the application.py file.
+
+```./application.py```
+
+Then, you should be able to access the webapp by going to your favorite web-browser, and going to `localhost:5000` in the address bar.
 
 
-
-### Instructions:
-Run with ```python3 controller.py```
-Then go to web browser and enter ```localhost:5000```.
-
-Enter fastq file and library file (.csv) and click analyze. (Note, while you can upload both, it is faster to place the files in /tmp/data/fastq and /tmp/data/library, respectively, to skip upload times.
-The program will create an output (.json) file in ```/tmp/data/output``` whose name is a concatenation of the fastq and library filenames.
-
-The result of the analyis will be displayed below. To load a previous analysis, select the file and click load.
-=======
-A Flask-based web app for CRISPR/Cas9 screen analysis.
-Author: Collin Schlager
-
-### Dependencies:
-```python3, python3-flask, python3-numpy, python3-pandas, python3-pyaml, python3-scipy```
-
-### Instructions:
-- Fork or download source files
-- Change directory into source file root folder: ```cd <insert-path-where-you-put-the-code>/screen_analyzer```
-- Run ```python3 application.py```
-- Then go to web browser and enter ```localhost:5000```.
-
-Enter an analysis name, your screen .fastq files, your library file, and a control file. Then, select the anlayses you wish to perform and hit run.
-
-The anlaysis will take some time, as the .fastq files need to be parsed and then cross-referenced with your library file. Next, the counts are normalized and put through the chosen statistical pipelines.
-
-The result will redirect you to the ```analysis/load``` url, where plots and a table representing the data will be rendered. You may download a .zip file of the result directory on this page.
-
-Clicking on a gene will display more information about it, including its symbol, frequency in the screen run, name, and a summary (if available). In order to obtain this additional information, please see the section below.
 
 ### library_embellisher.py
 
