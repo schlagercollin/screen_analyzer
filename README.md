@@ -2,8 +2,8 @@
 A simple program to analyze genetic screen data.
 Author: Collin Schlager
 
-### Dependencies:
-```python3, pip, and virtualenv```
+## Dependencies:
+```python3, pip, virtualenv, and Mageck```
 
 First, make sure you have pip and virtualenv. These will help download the other packages that the web app depends on.
 
@@ -13,6 +13,26 @@ First, make sure you have pip and virtualenv. These will help download the other
 
 ```python3 -m pip install --user virtualenv```
 
+You also need Mageck. Download the compressed source files here: [Sourceforge link](https://sourceforge.net/projects/mageck/files/latest/download)
+
+Assuming it downloaded to your Downloads folder, go into there and uncompress the source file.
+
+```tar xvzf mageck-0.5.8.tar.gz```
+```cd mageck-0.5.8```
+
+Install with the following command.
+
+```python3 setup.py install```
+
+You should now be able to run Mageck. Check that you can by entering
+
+```mageck -v```
+
+>If something like "command not found" is returned instead, you will need to add the command to your PATH variable. Let me know if you run into this problem. Essentially, you just need to tell your computer where to find the program named "mageck."
+
+This should display the version number (0.5.8).
+
+Okay, now that we have the pre-requisite software, we can download the webapp and get it running!
 
 ## Install Instructions
 
