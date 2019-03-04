@@ -1,6 +1,7 @@
 # screen_analyzer
-A simple program to analyze genetic screen data.
-Author: Collin Schlager
+A webapp to analyze genetic screen data.
+
+Author: Collin Schlager (2018-2019)
 
 ## Dependencies:
 ```python3, pip, virtualenv, and Mageck```
