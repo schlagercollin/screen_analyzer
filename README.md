@@ -5,6 +5,37 @@ Author: Collin Schlager
 ### Dependencies:
 ```python3, python3-flask```
 
+### Install Instructions
+
+##### Cloning the Source Code from the Repository
+
+First, clone the github repository into a directory of your choosing. 
+
+Here, I show how you can make a directory in your Documents folder called "Screens"
+
+```cd```
+```cd Documents```
+```mkdir Screens```
+
+With the directory created, you can now "change directory" into the new folder.
+
+```cd Screens```
+
+Next, you are going to "clone" the github repository (this downloads the source code of the webapp into a new folder)
+
+```git clone https://github.com/schlagercollin/screen_analyzer.git```
+
+Listing the files, you should now see a new folder titled "screen_analyzer."
+
+```ls```
+
+Let's checkout the stuff that downloaded by changing directory into the new folder.
+
+```cd screen_analyzer```
+
+
+
+
 ### Instructions:
 Run with ```python3 controller.py```
 Then go to web browser and enter ```localhost:5000```.
