@@ -84,3 +84,5 @@ After this installs the necessary packages, you should be able to run webapp! To
 ```./application.py```
 
 You should now be able to access the webapp by going to your favorite web-browser. Enter `localhost:5000` in the address bar, and you should see the app's main page.
+
+[alt-text](https://user-images.githubusercontent.com/23715298/53771649-4a0fa080-3e98-11e9-895d-50fbbd7d3972.png)
