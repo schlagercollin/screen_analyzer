@@ -83,20 +83,4 @@ After this installs the necessary packages, you should be able to run webapp! To
 
 ```./application.py```
 
-Then, you should be able to access the webapp by going to your favorite web-browser, and going to `localhost:5000` in the address bar.
-
-
-
-### library_embellisher.py
-
-In order to display the additional gene information such as name and summary, the library file used in the screen analysis must be "embellished" using __library_embellisher.py__. This program polls NCBI's gene database for the additional information and updates the library file accordingly. This process can take some time due to the API polling. For the given library file, this process takes ~14 minutes. However, once your library file is "embellished," there is no need to undergo this process again. 
-
-Embellish your library file with the following python3 commands:
-
-```
-from library_embellish import embellish
-
-embellish(YOUR_FILE_PATH_HERE)
-```
-
-A new updated (.csv) file will be created with the additional information. Use this file for future analysis.
+You should now be able to access the webapp by going to your favorite web-browser. Enter `localhost:5000` in the address bar, and you should see the app's main page.
