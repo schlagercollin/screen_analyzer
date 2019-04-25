@@ -275,13 +275,22 @@ class analysisThread(threading.Thread):
 
     def run_mageck_command(self, mageck_path, condition):
 
+        # handles spaces in file names (NOTE: mageck also runs a command, and it does NOT replace spaces.)
+        mageck_path = mageck_path.replace(" ", "\\ ")
+        mageck_output_path_prefix = str(self.mageck_output_path_prefix).replace(" ", "\\ ")
+        control_file = str(self.control_file).replace(" ", "\\ ")
+
         control_columns = ",".join(list(map(str,np.arange(self.replicate_number)))) # 0,1 for 2 replicates
         test_columns = ",".join(list(map(str,np.arange(self.replicate_number)+self.replicate_number))) # 2,3 for 2 replicates
 
+
         command = "mageck test -k " + mageck_path + " -t "+test_columns+" -c "+control_columns+" -n " + \
-                str(self.mageck_output_path_prefix)+"_mageck_" + condition + \
+                mageck_output_path_prefix+"_mageck_" + condition + \
                 " --sort-criteria pos --gene-lfc-method alphamean --control-sgrna "\
-                 + str(self.control_file)
+                 + control_file
+
+
+        print("Running this command: ", command)
 
         self.status = "Running Mageck command for %s..." % condition
 

@@ -3,6 +3,7 @@ Uses four cores to split up the API requests.
 For the library file give, this process takes 886.94 seconds (14 minutes)
 
 TODO: batch queries to speed this up.
+TODO: memoize the gene ids
 """
 
 import csv
@@ -14,6 +15,8 @@ from multiprocessing import Pool
 
 
 API_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=gene&id=%d&retmode=xml'
+
+genesDict = {}
 
 class Gene:
     def __init__(self, gene_id):
@@ -66,7 +69,10 @@ def process_part(reader):
 
     for row in reader:
         counter += 1
-        gene = Gene(int(row["Target Gene ID"]))
+        if (genesDict.has_key(int(row["Target Gene ID"]))):
+            gene = genesDict[int(row["Target Gene ID"])]
+        else:
+             gene = Gene(int(row["Target Gene ID"]))
         row["Summary"] = gene.summary
         row["Description"] = gene.description
         new_file.append(row)
@@ -75,6 +81,7 @@ def process_part(reader):
 
 
 def process(rows):
+    global genesDict
     result = []
     try:
         gene = Gene(int(rows[1]))
@@ -138,3 +145,10 @@ def embellish(FILE):
     duration = end - start
     print("Time Elapsed: ", duration)
     return OUTPUT_FILE
+
+if __name__ == "__main__":
+    print("Enter a file name: ")
+    filename = input("Filename: ")
+    output = embellish(filename)
+    print(output)
+    print("All done.")

@@ -16,8 +16,8 @@ import copy
 import yaml
 import shutil
 #
-# werkzeug_log = logging.getLogger('werkzeug')
-# werkzeug_log.setLevel(logging.ERROR)
+werkzeug_log = logging.getLogger('werkzeug')
+werkzeug_log.setLevel(logging.ERROR)
 
 my_logger = logging.getLogger(__name__)
 my_logger.setLevel(logging.DEBUG)
